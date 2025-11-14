@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import "./App.css";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -26,6 +27,8 @@ import {
 const THEME = {
   dark: {
     pageBg: "#0b1220",
+    pdfBg: "#000000",
+    inputBg: "#000000",
     text: "#e6eefc",
     muted: "#9fb0d1",
     cardBg: "#111827",
@@ -42,6 +45,8 @@ const THEME = {
   },
   light: {
     pageBg: "#f7fafc",
+    pdfBg: "#ffffff",
+    inputBg: "#ffffff",
     text: "#0f172a",
     muted: "#475569",
     cardBg: "#ffffff",
@@ -448,7 +453,7 @@ export default function App() {
   const exportPDF = async () => {
     const n = pdfRef.current;
     if (!n) return;
-    const canvas = await html2canvas(n, { scale: 2, backgroundColor: dark ? theme.pageBg : "#fff" });
+    const canvas = await html2canvas(n, { scale: 2, backgroundColor: theme.pdfBg || theme.pageBg });
     const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -520,9 +525,9 @@ export default function App() {
     </div>
   );
 
-  return (
-    <div style={{ minHeight: "100vh", background: theme.pageBg, color: theme.text }}>
-      <div style={{ maxWidth: 1140, margin: "0 auto", padding: "14px 16px" }}>
+  const content = (
+    <div className={`ut-shell ${dark ? "ut-shell--dark" : "ut-shell--light"}`}>
+      <div className="ut-card" style={{ background: theme.pageBg, color: theme.text }}>
         {/* Sticky header */}
         <div style={{ position: "sticky", top: 0, zIndex: 5, paddingBottom: 8, background: theme.pageBg }}>
           <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -1000,12 +1005,14 @@ export default function App() {
           </section>
         </div>
 
-        <footer style={{ color: theme.muted, fontSize: 12, padding: "10px 2px" }}>
-          For client sharing, use the <strong>PDF</strong> button in the header.
+        <footer style={{ color: theme.muted, fontSize: 12, padding: "10px 2px", textAlign: "center", lineHeight: 1.6 }}>
+          © 2025 Ultimate Target · Educational only — not financial advice · Built by Michael Leggo.
         </footer>
       </div>
     </div>
   );
+
+  return <PasswordGate>{content}</PasswordGate>;
 }
 
 // ============== Input (range + number) ===================
@@ -1029,6 +1036,8 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
     setText(String(n));
   };
   const display = money ? (focus ? text : fmtAUD(Number(text) || 0).replace(/^A\$/, "$")) : text;
+  const sliderFill = ((Number(value) - min) / Math.max(1, max - min)) * 100;
+  const sliderFillClamped = Math.min(100, Math.max(0, sliderFill));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1046,7 +1055,14 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
           step={step}
           value={value}
           onChange={(e) => onChange(clamp(Number(e.target.value), min, max))}
-          style={{ accentColor: theme.accent }}
+          className="ut-range"
+          style={{
+            "--range-fill": `${sliderFillClamped}%`,
+            "--range-color": theme.accent,
+            "--range-track": theme.border,
+            "--range-thumb": theme.inputBg || theme.pageBg,
+            "--range-thumb-border": theme.accent,
+          }}
         />
         <input
           type={money ? "text" : "number"}
@@ -1085,7 +1101,7 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
             borderRadius: 12,
             border: `1px solid ${theme.border}`,
             padding: "8px 10px",
-            background: theme.pageBg,
+            background: theme.inputBg || theme.pageBg,
             color: theme.text,
           }}
         />
@@ -1189,3 +1205,51 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
     console.warn("❌ simulate() tests encountered an error", e);
   }
 })();
+
+function PasswordGate({ children }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [authed, setAuthed] = useState(false);
+
+  const expectedPassword = useMemo(() => {
+    const month = new Date().getMonth() + 1;
+    return `MJL${month}`;
+  }, []);
+
+  const attemptLogin = () => {
+    const normalized = (input || "").trim().toUpperCase();
+    if (normalized === expectedPassword) {
+      setAuthed(true);
+      setError("");
+    } else {
+      setError("Incorrect password. Please try again.");
+    }
+  };
+
+  if (authed) return children;
+
+  return (
+    <div className="ut-shell ut-shell--gate">
+      <div className="ut-gate-card">
+        <h1>Welcome to UltimateTarget</h1>
+        <p>Please enter this month&apos;s access password to continue.</p>
+        <input
+          type="password"
+          className="ut-gate-input"
+          placeholder="Password"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              attemptLogin();
+            }
+          }}
+        />
+        <button className="ut-gate-button" onClick={attemptLogin}>
+          Log in
+        </button>
+        {error ? <div className="ut-gate-error">{error}</div> : null}
+      </div>
+    </div>
+  );
+}
