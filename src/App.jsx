@@ -441,6 +441,62 @@ export default function App() {
   const feeDragRetPct = (atRet_diy?.nominal || 0) > 0 ? Math.round((feeDragAtRet / atRet_diy.nominal) * 100) : 0;
   const feeDragHznPct = (fees_diy.endNom || 0) > 0 ? Math.round((feeDragAtHorizon / fees_diy.endNom) * 100) : 0;
 
+  // ---- Enhanced DIY vs Adviser Analysis ----
+  const calculateTotalFeesPaid = (runOutAge, feePct, fixedFee) => {
+    if (!runOutAge || runOutAge > lifeExpectancy) return 0;
+    let totalFees = 0;
+    const startYear = Math.floor(currentAge);
+    const endYear = Math.floor(runOutAge);
+    
+    // Calculate fees year by year based on actual balances
+    for (let age = startYear; age < endYear; age++) {
+      // Find the row for this age (or closest)
+      const yearRow = ut_adv_now.rows.find(r => r.age === age);
+      if (!yearRow) continue;
+      
+      const balanceAtYearStart = yearRow.nominal;
+      
+      // Annual percentage fee (applied to balance)
+      const pctFee = balanceAtYearStart * (feePct / 100);
+      // Fixed fee
+      const fixed = fixedFee;
+      totalFees += pctFee + fixed;
+    }
+    
+    // Add partial year if run-out age is not a whole number
+    if (runOutAge % 1 !== 0) {
+      const finalRow = ut_adv_now.rows.find(r => r.age >= Math.floor(runOutAge));
+      if (finalRow) {
+        const partialBalance = finalRow.nominal;
+        const partialPctFee = partialBalance * (feePct / 100) * (runOutAge % 1);
+        const partialFixed = fixedFee * (runOutAge % 1);
+        totalFees += partialPctFee + partialFixed;
+      }
+    }
+    
+    return Math.round(totalFees);
+  };
+
+  const adviserRunOutAge = ut_adv_now.depletedAge;
+  const diyRunOutAge = ut_diy_now.depletedAge;
+  const adviserRunsOutEarly = adviserRunOutAge && (!diyRunOutAge || adviserRunOutAge < diyRunOutAge);
+  const yearsEarly = adviserRunsOutEarly && diyRunOutAge 
+    ? diyRunOutAge - adviserRunOutAge 
+    : adviserRunsOutEarly && !diyRunOutAge 
+    ? lifeExpectancy - adviserRunOutAge 
+    : 0;
+
+  const totalFeesPaid = adviserRunsOutEarly 
+    ? calculateTotalFeesPaid(adviserRunOutAge, advisorFeePct, advisorFixed)
+    : 0;
+
+  // Find DIY balance at adviser run-out age
+  const diyBalanceAtAdviserRunOut = adviserRunsOutEarly && adviserRunOutAge
+    ? (ut_diy_now.rows.find(r => r.age >= adviserRunOutAge) || ut_diy_now.rows[ut_diy_now.rows.length - 1])?.nominal || 0
+    : 0;
+
+  const opportunityCost = adviserRunsOutEarly ? diyBalanceAtAdviserRunOut : 0;
+
   const annualSavings = Math.max(0, monthlySave * 12);
   const nominalRetirementBalance = nz(atRet_now?.nominal, 0);
   const realRetirementBalance = nz(atRet_now?.real, 0);
@@ -790,6 +846,44 @@ export default function App() {
             </p>
           </section>
 
+          {/* Early Run-Out Warning (Adviser vs DIY) */}
+          {tab === TABS.TARGET && compareAdv && adviserRunsOutEarly && (
+            <section style={{ ...themeCard, marginTop: 10, border: `2px solid ${theme.danger}`, background: dark ? "#1a0f0f" : "#fff5f5" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 32 }}>⚠️</span>
+                <h2 style={{ margin: 0, color: theme.danger, fontSize: 20, fontWeight: 800 }}>
+                  Critical Finding: Adviser Strategy Runs Out of Money Early
+                </h2>
+              </div>
+              <div style={{ lineHeight: 1.8, fontSize: 15 }}>
+                <p style={{ margin: "0 0 12px 0", fontWeight: 700 }}>
+                  Under the Adviser scenario, your money runs out at age <strong style={{ color: theme.danger, fontSize: 18 }}>{adviserRunOutAge}</strong> — 
+                  which is <strong style={{ color: theme.danger, fontSize: 18 }}>{yearsEarly}</strong> {yearsEarly === 1 ? "year" : "years"} earlier than the DIY strategy.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 16 }}>
+                  <div style={{ padding: 12, background: theme.cardBg, borderRadius: 8, border: `1px solid ${theme.border}` }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6, color: theme.danger }}>Total Fees Paid</div>
+                    <div style={{ fontSize: 18, fontWeight: 800 }}>{fmtAUD(totalFeesPaid)}</div>
+                    <div style={{ fontSize: 12, color: theme.muted, marginTop: 4 }}>
+                      Paid to adviser before money ran out
+                    </div>
+                  </div>
+                  <div style={{ padding: 12, background: theme.cardBg, borderRadius: 8, border: `1px solid ${theme.border}` }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6, color: theme.success }}>DIY Balance at That Point</div>
+                    <div style={{ fontSize: 18, fontWeight: 800 }}>{fmtAUD(diyBalanceAtAdviserRunOut)}</div>
+                    <div style={{ fontSize: 12, color: theme.muted, marginTop: 4 }}>
+                      What DIY still had when adviser hit zero
+                    </div>
+                  </div>
+                </div>
+                <p style={{ margin: "16px 0 0 0", fontWeight: 600, color: theme.text }}>
+                  By the time the Adviser strategy ran out of money, the DIY strategy still had <strong style={{ color: theme.success, fontSize: 16 }}>{fmtAUD(opportunityCost)}</strong> remaining — 
+                  this is the lost opportunity from paying fees instead of keeping that money invested.
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Chart */}
           <section style={{ ...themeCard, marginTop: 10 }} aria-labelledby="chartTitle">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -915,10 +1009,19 @@ export default function App() {
             )}
             {tab === TABS.TARGET && (
               compareAdv ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 12 }}>
                   <Chip>DIY @ Retirement: {fmtAUD(atRet_ut_diy?.nominal || 0)}</Chip>
                   <Chip>Adviser @ Retirement: {fmtAUD(atRet_ut_adv?.nominal || 0)}</Chip>
-                  <Chip tone="danger">Fee Drag (Start Now): {fmtAUD(Math.max(0, (atRet_ut_diy?.nominal || 0) - (atRet_ut_adv?.nominal || 0)))}</Chip>
+                  {adviserRunsOutEarly ? (
+                    <>
+                      <Chip tone="danger">Adviser Runs Out: Age {adviserRunOutAge}</Chip>
+                      <Chip tone="danger">Years Early: {yearsEarly}</Chip>
+                      <Chip tone="danger">Fees Paid: {fmtAUD(totalFeesPaid)}</Chip>
+                      <Chip tone="success">DIY @ Adviser Run-Out: {fmtAUD(diyBalanceAtAdviserRunOut)}</Chip>
+                    </>
+                  ) : (
+                    <Chip tone="danger">Fee Drag (Start Now): {fmtAUD(Math.max(0, (atRet_ut_diy?.nominal || 0) - (atRet_ut_adv?.nominal || 0)))}</Chip>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
@@ -969,7 +1072,7 @@ export default function App() {
             </ul>
 
             {/* Clear write-ups */}
-            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: tab === TABS.COMPOUND ? "1fr" : "repeat(2,minmax(0,1fr))", gap: 12 }}>
               {/* Start Now vs Delay */}
               <div style={{ border: `1px solid ${theme.border}`, borderRadius: 12, padding: 12, background: theme.cardBg }}>
                 <div style={{ fontWeight: 800, marginBottom: 6 }}>⏳ Start Now vs Delay</div>
@@ -984,23 +1087,51 @@ export default function App() {
                 </ul>
               </div>
 
-              {/* DIY vs Adviser — Fees & Time Value */}
+              {/* DIY vs Adviser — Fees & Time Value (only for Fees and Target tabs) */}
+              {(tab === TABS.FEES || tab === TABS.TARGET) && (
               <div style={{ border: `1px solid ${theme.border}`, borderRadius: 12, padding: 12, background: theme.cardBg }}>
                 <div style={{ fontWeight: 800, marginBottom: 6 }}>👥 DIY vs Adviser — Fees & Time Value</div>
-                <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-                  <li>
-                    <strong>At retirement:</strong> Adviser leaves about {" "}
-                    <strong style={{ color: theme.danger }}>{fmtAUD(feeDragAtRet)}</strong> less than DIY (<strong>{feeDragRetPct}%</strong> drag).
-                  </li>
-                  <li>
-                    <strong>Over the full horizon:</strong> Adviser leaves about {" "}
-                    <strong style={{ color: theme.danger }}>{fmtAUD(feeDragAtHorizon)}</strong> less than DIY (~<strong>{feeDragHznPct}%</strong> of the DIY outcome).
-                  </li>
-                  <li style={{ color: theme.muted }}>
-                    DIY fees: {diyFeePct}% + {fmtAUD(diyFixed)} /yr • Adviser fees: {advisorFeePct}% + {fmtAUD(advisorFixed)} /yr
-                  </li>
-                </ul>
+                {adviserRunsOutEarly ? (
+                  <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                    <li>
+                      <strong style={{ color: theme.danger }}>Adviser runs out of money at age {adviserRunOutAge}</strong> — 
+                      {yearsEarly} {yearsEarly === 1 ? "year" : "years"} earlier than DIY.
+                    </li>
+                    <li>
+                      <strong>Total fees paid before running out:</strong> <strong style={{ color: theme.danger }}>{fmtAUD(totalFeesPaid)}</strong>
+                    </li>
+                    <li>
+                      <strong>DIY balance when adviser hit zero:</strong> <strong style={{ color: theme.success }}>{fmtAUD(diyBalanceAtAdviserRunOut)}</strong> — 
+                      this is the lost opportunity cost.
+                    </li>
+                    <li>
+                      <strong>DIY final balance (full horizon):</strong> <strong style={{ color: theme.success }}>{fmtAUD(ut_diy_now.endNom)}</strong>
+                    </li>
+                    <li style={{ marginTop: 8, padding: 8, background: dark ? "#1a0f0f" : "#fff5f5", borderRadius: 6, border: `1px solid ${theme.danger}` }}>
+                      <strong style={{ color: theme.danger }}>Conclusion:</strong> By following the Adviser strategy, you ran out of money {yearsEarly} {yearsEarly === 1 ? "year" : "years"} earlier and paid {fmtAUD(totalFeesPaid)} in fees, 
+                      while the DIY strategy maintained a positive balance and continued compounding for the full horizon.
+                    </li>
+                    <li style={{ color: theme.muted, marginTop: 8, fontSize: 13 }}>
+                      DIY fees: {diyFeePct}% + {fmtAUD(diyFixed)} /yr • Adviser fees: {advisorFeePct}% + {fmtAUD(advisorFixed)} /yr
+                    </li>
+                  </ul>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                    <li>
+                      <strong>At retirement:</strong> Adviser leaves about {" "}
+                      <strong style={{ color: theme.danger }}>{fmtAUD(feeDragAtRet)}</strong> less than DIY (<strong>{feeDragRetPct}%</strong> drag).
+                    </li>
+                    <li>
+                      <strong>Over the full horizon:</strong> Adviser leaves about {" "}
+                      <strong style={{ color: theme.danger }}>{fmtAUD(feeDragAtHorizon)}</strong> less than DIY (~<strong>{feeDragHznPct}%</strong> of the DIY outcome).
+                    </li>
+                    <li style={{ color: theme.muted }}>
+                      DIY fees: {diyFeePct}% + {fmtAUD(diyFixed)} /yr • Adviser fees: {advisorFeePct}% + {fmtAUD(advisorFixed)} /yr
+                    </li>
+                  </ul>
+                )}
               </div>
+              )}
             </div>
           </section>
         </div>
