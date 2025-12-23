@@ -586,14 +586,14 @@ export default function App() {
       <div className="ut-card" style={{ background: theme.pageBg, color: theme.text }}>
         {/* Sticky header */}
         <div style={{ position: "sticky", top: 0, zIndex: 5, paddingBottom: 8, background: theme.pageBg }}>
-          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <div>
+          <header className="ut-mobile-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Ultimate Target — Compounding • Fees • Target</h1>
               <p style={{ margin: 0, color: theme.muted, fontSize: 12 }}>
                 Type exact values or drag sliders. Auto‑save on. Shift+↑/↓ steps x10.
               </p>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="ut-mobile-buttons" style={{ display: "flex", gap: 8 }}>
               <QuickButton onClick={() => setDark((d) => !d)} title="Toggle Night/Day">
                 {dark ? "🌙 Night" : "☀️ Day"}
               </QuickButton>
@@ -602,8 +602,8 @@ export default function App() {
           </header>
 
           {/* Presets & Tabs */}
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
-            <div style={{ display: "flex", gap: 6 }}>
+          <div className="ut-mobile-tabs-container" style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+            <div className="ut-mobile-presets" style={{ display: "flex", gap: 6 }}>
               {["Conservative", "Balanced", "Growth"].map((p) => (
                 <button
                   key={p}
@@ -622,7 +622,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="ut-mobile-tabs" style={{ display: "flex", gap: 8 }}>
               {[TABS.COMPOUND, TABS.FEES, TABS.TARGET].map((t) => (
                 <button
                   key={t}
@@ -647,28 +647,29 @@ export default function App() {
         {/* Report wrapper for PDF */}
         <div ref={pdfRef}>
           {/* At-a-glance cards */}
-          <section style={{ ...themeCard, marginTop: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10 }}>
+          <section className="ut-mobile-section" style={{ ...themeCard, marginTop: 10 }}>
+            <div className="ut-mobile-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10 }}>
               <Chip>
-                👤 To Retirement: <strong>{Math.max(0, retirementAge - currentAge)}</strong> yrs
+                <span className="ut-mobile-chip">👤 To Retirement: <strong>{Math.max(0, retirementAge - currentAge)}</strong> yrs</span>
               </Chip>
               <Chip>
-                💰 Invested to Retire: <strong>{fmtAUD(monthlySave * 12 * Math.max(0, retirementAge - currentAge))}</strong>
+                <span className="ut-mobile-chip">💰 Invested: <strong>{fmtAUD(monthlySave * 12 * Math.max(0, retirementAge - currentAge))}</strong></span>
               </Chip>
               <Chip>
-                📈 Balance @ {retirementAge}: <strong>{fmtAUD(nominalRetirementBalance)}</strong>
+                <span className="ut-mobile-chip">📈 Balance @ {retirementAge}: <strong>{fmtAUD(nominalRetirementBalance)}</strong></span>
               </Chip>
               <Chip>
-                🏁 Sustainable Spend: <strong>{fmtAUD(sustainableSpendToday)}</strong> (today $)
+                <span className="ut-mobile-chip">🏁 Sustainable: <strong>{fmtAUD(sustainableSpendToday)}</strong></span>
               </Chip>
             </div>
           </section>
 
           {/* Controls */}
-          <section style={{ ...themeCard, marginTop: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
-              <div style={{ display: "flex", gap: 8 }}>
+          <section className="ut-mobile-section" style={{ ...themeCard, marginTop: 10 }}>
+            <div className="ut-mobile-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
+              <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1" }}>
                 <input
+                  className="ut-mobile-input"
                   placeholder="Client name (optional)"
                   value={client}
                   onChange={(e) => setClient(e.target.value)}
@@ -848,10 +849,10 @@ export default function App() {
 
           {/* Early Run-Out Warning (Adviser vs DIY) */}
           {tab === TABS.TARGET && compareAdv && adviserRunsOutEarly && (
-            <section style={{ ...themeCard, marginTop: 10, border: `2px solid ${theme.danger}`, background: dark ? "#1a0f0f" : "#fff5f5" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 32 }}>⚠️</span>
-                <h2 style={{ margin: 0, color: theme.danger, fontSize: 20, fontWeight: 800 }}>
+            <section className="ut-mobile-warning" style={{ ...themeCard, marginTop: 10, border: `2px solid ${theme.danger}`, background: dark ? "#1a0f0f" : "#fff5f5" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 32, flexShrink: 0 }}>⚠️</span>
+                <h2 style={{ margin: 0, color: theme.danger, fontSize: 20, fontWeight: 800, lineHeight: 1.3 }}>
                   Critical Finding: Adviser Strategy Runs Out of Money Early
                 </h2>
               </div>
@@ -860,7 +861,7 @@ export default function App() {
                   Under the Adviser scenario, your money runs out at age <strong style={{ color: theme.danger, fontSize: 18 }}>{adviserRunOutAge}</strong> — 
                   which is <strong style={{ color: theme.danger, fontSize: 18 }}>{yearsEarly}</strong> {yearsEarly === 1 ? "year" : "years"} earlier than the DIY strategy.
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 16 }}>
+                <div className="ut-mobile-warning-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 16 }}>
                   <div style={{ padding: 12, background: theme.cardBg, borderRadius: 8, border: `1px solid ${theme.border}` }}>
                     <div style={{ fontWeight: 700, marginBottom: 6, color: theme.danger }}>Total Fees Paid</div>
                     <div style={{ fontSize: 18, fontWeight: 800 }}>{fmtAUD(totalFeesPaid)}</div>
@@ -885,21 +886,21 @@ export default function App() {
           )}
 
           {/* Chart */}
-          <section style={{ ...themeCard, marginTop: 10 }} aria-labelledby="chartTitle">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <h2 id="chartTitle" style={{ margin: 0 }}>
+          <section className="ut-mobile-section" style={{ ...themeCard, marginTop: 10 }} aria-labelledby="chartTitle">
+            <div className="ut-mobile-chart-controls" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <h2 id="chartTitle" className="ut-mobile-chart-title" style={{ margin: 0 }}>
                 {tab === TABS.COMPOUND
                   ? "Compounding: Start Now vs Delay"
                   : tab === TABS.FEES
                   ? "Fees: DIY vs Adviser"
                   : compareAdv
-                  ? "Ultimate Target: DIY vs Adviser (Start Now)"
-                  : "DIY Ultimate Target: Start Now vs Delay (with Spend)"}
+                  ? "Ultimate Target: DIY vs Adviser"
+                  : "DIY Ultimate Target: Start vs Delay"}
               </h2>
 
               {/* Compare toggles in chart header */}
               {tab === TABS.TARGET && (
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ color: theme.muted, fontSize: 13 }}>Compare:</span>
                   <button
                     onClick={() => setCompareAdv(false)}
@@ -911,6 +912,7 @@ export default function App() {
                       color: !compareAdv ? "#fff" : theme.text,
                       cursor: "pointer",
                       fontWeight: 700,
+                      fontSize: 12,
                     }}
                   >
                     Start vs Delay
@@ -925,6 +927,7 @@ export default function App() {
                       color: compareAdv ? "#fff" : theme.text,
                       cursor: "pointer",
                       fontWeight: 700,
+                      fontSize: 12,
                     }}
                   >
                     DIY vs Adviser
@@ -933,7 +936,7 @@ export default function App() {
               )}
             </div>
 
-            <div style={{ width: "100%", height: 460 }}>
+            <div className="ut-mobile-chart-container" style={{ width: "100%", height: 460 }}>
               <ResponsiveContainer>
                 <ComposedChart data={chartRows} margin={{ top: 40, right: 24, left: 12, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
@@ -991,52 +994,52 @@ export default function App() {
 
             {/* Callouts */}
             {tab === TABS.COMPOUND && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
-                <Chip>Start Now @ Retirement: {fmtAUD(atRet_now?.nominal || 0)}</Chip>
-                <Chip>Delay {delayYears}y @ Retirement: {fmtAUD(atRet_delay?.nominal || 0)}</Chip>
-                <Chip tone="danger">Cost of Delay: {fmtAUD(costOfDelayAtRet)}</Chip>
+              <div className="ut-mobile-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
+                <Chip><span className="ut-mobile-chip">Start Now @ Ret: {fmtAUD(atRet_now?.nominal || 0)}</span></Chip>
+                <Chip><span className="ut-mobile-chip">Delay {delayYears}y @ Ret: {fmtAUD(atRet_delay?.nominal || 0)}</span></Chip>
+                <Chip tone="danger"><span className="ut-mobile-chip">Cost of Delay: {fmtAUD(costOfDelayAtRet)}</span></Chip>
               </div>
             )}
             {tab === TABS.FEES && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
-                <Chip>DIY @ Retirement: {fmtAUD(atRet_diy?.nominal || 0)}</Chip>
-                <Chip>Adviser @ Retirement: {fmtAUD(atRet_adv?.nominal || 0)}</Chip>
-                <Chip tone="danger">Fee Drag (to retirement): {fmtAUD(Math.max(0, (atRet_diy?.nominal || 0) - (atRet_adv?.nominal || 0)))} ({feeDragRetPct}%)</Chip>
-                <Chip tone="danger">Fee Drag (to horizon): {fmtAUD(Math.max(0, fees_diy.endNom - fees_advisor.endNom))} ({feeDragHznPct}%)</Chip>
-                <Chip>DIY @ Horizon: {fmtAUD(fees_diy.endNom)}</Chip>
-                <Chip>Adviser @ Horizon: {fmtAUD(fees_advisor.endNom)}</Chip>
+              <div className="ut-mobile-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
+                <Chip><span className="ut-mobile-chip">DIY @ Ret: {fmtAUD(atRet_diy?.nominal || 0)}</span></Chip>
+                <Chip><span className="ut-mobile-chip">Adviser @ Ret: {fmtAUD(atRet_adv?.nominal || 0)}</span></Chip>
+                <Chip tone="danger"><span className="ut-mobile-chip">Fee Drag (Ret): {fmtAUD(Math.max(0, (atRet_diy?.nominal || 0) - (atRet_adv?.nominal || 0)))} ({feeDragRetPct}%)</span></Chip>
+                <Chip tone="danger"><span className="ut-mobile-chip">Fee Drag (Horizon): {fmtAUD(Math.max(0, fees_diy.endNom - fees_advisor.endNom))} ({feeDragHznPct}%)</span></Chip>
+                <Chip><span className="ut-mobile-chip">DIY @ Horizon: {fmtAUD(fees_diy.endNom)}</span></Chip>
+                <Chip><span className="ut-mobile-chip">Adviser @ Horizon: {fmtAUD(fees_advisor.endNom)}</span></Chip>
               </div>
             )}
             {tab === TABS.TARGET && (
               compareAdv ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 12 }}>
+                <div className="ut-mobile-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginTop: 12 }}>
                   <Chip>DIY @ Retirement: {fmtAUD(atRet_ut_diy?.nominal || 0)}</Chip>
                   <Chip>Adviser @ Retirement: {fmtAUD(atRet_ut_adv?.nominal || 0)}</Chip>
                   {adviserRunsOutEarly ? (
                     <>
-                      <Chip tone="danger">Adviser Runs Out: Age {adviserRunOutAge}</Chip>
-                      <Chip tone="danger">Years Early: {yearsEarly}</Chip>
-                      <Chip tone="danger">Fees Paid: {fmtAUD(totalFeesPaid)}</Chip>
-                      <Chip tone="success">DIY @ Adviser Run-Out: {fmtAUD(diyBalanceAtAdviserRunOut)}</Chip>
+                      <Chip tone="danger"><span className="ut-mobile-chip">Adviser Runs Out: Age {adviserRunOutAge}</span></Chip>
+                      <Chip tone="danger"><span className="ut-mobile-chip">Years Early: {yearsEarly}</span></Chip>
+                      <Chip tone="danger"><span className="ut-mobile-chip">Fees Paid: {fmtAUD(totalFeesPaid)}</span></Chip>
+                      <Chip tone="success"><span className="ut-mobile-chip">DIY @ Run-Out: {fmtAUD(diyBalanceAtAdviserRunOut)}</span></Chip>
                     </>
                   ) : (
-                    <Chip tone="danger">Fee Drag (Start Now): {fmtAUD(Math.max(0, (atRet_ut_diy?.nominal || 0) - (atRet_ut_adv?.nominal || 0)))}</Chip>
+                    <Chip tone="danger"><span className="ut-mobile-chip">Fee Drag: {fmtAUD(Math.max(0, (atRet_ut_diy?.nominal || 0) - (atRet_ut_adv?.nominal || 0)))}</span></Chip>
                   )}
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
+                <div className="ut-mobile-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, marginTop: 12 }}>
                   <Chip>
-                    <strong>Sustainable Spend (today $):</strong> {fmtAUD(sustainableSpendToday)}
+                    <span className="ut-mobile-chip"><strong>Sustainable Spend:</strong> {fmtAUD(sustainableSpendToday)}</span>
                   </Chip>
                   {ut_now.depletedAge ? (
-                    <Chip tone="danger">Start Now: Depletes ~ Age {ut_now.depletedAge}</Chip>
+                    <Chip tone="danger"><span className="ut-mobile-chip">Start Now: Depletes ~ Age {ut_now.depletedAge}</span></Chip>
                   ) : (
-                    <Chip tone="success">Start Now: Funds last beyond {lifeExpectancy}</Chip>
+                    <Chip tone="success"><span className="ut-mobile-chip">Start Now: Funds last beyond {lifeExpectancy}</span></Chip>
                   )}
                   {ut_delay.depletedAge ? (
-                    <Chip tone="danger">Delay {delayYears}y: Depletes ~ Age {ut_delay.depletedAge}</Chip>
+                    <Chip tone="danger"><span className="ut-mobile-chip">Delay {delayYears}y: Depletes ~ Age {ut_delay.depletedAge}</span></Chip>
                   ) : (
-                    <Chip tone="success">Delay {delayYears}y: Funds last beyond {lifeExpectancy}</Chip>
+                    <Chip tone="success"><span className="ut-mobile-chip">Delay {delayYears}y: Funds last beyond {lifeExpectancy}</span></Chip>
                   )}
                 </div>
               )
@@ -1044,9 +1047,9 @@ export default function App() {
           </section>
 
           {/* Summary — Key Insights (clean, concise) */}
-          <section style={{ ...themeCard, marginTop: 10 }} aria-labelledby="keyInsightsTitle">
-            <h2 id="keyInsightsTitle" style={{ marginTop: 0 }}>Summary — Key Insights</h2>
-            <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <section className="ut-mobile-section ut-mobile-summary" style={{ ...themeCard, marginTop: 10 }} aria-labelledby="keyInsightsTitle">
+            <h2 id="keyInsightsTitle" style={{ marginTop: 0, fontSize: 18 }}>Summary — Key Insights</h2>
+            <ul className="ut-mobile-summary" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
               <li>
                 🟦 <strong>Retirement Line:</strong> Age <strong>{retirementAge}</strong> — you have <strong>{Math.max(0, retirementAge - currentAge)}</strong> years to retirement.
               </li>
@@ -1072,10 +1075,10 @@ export default function App() {
             </ul>
 
             {/* Clear write-ups */}
-            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: tab === TABS.COMPOUND ? "1fr" : "repeat(2,minmax(0,1fr))", gap: 12 }}>
+            <div className="ut-mobile-grid-2" style={{ marginTop: 12, display: "grid", gridTemplateColumns: tab === TABS.COMPOUND ? "1fr" : "repeat(2,minmax(0,1fr))", gap: 12 }}>
               {/* Start Now vs Delay */}
               <div style={{ border: `1px solid ${theme.border}`, borderRadius: 12, padding: 12, background: theme.cardBg }}>
-                <div style={{ fontWeight: 800, marginBottom: 6 }}>⏳ Start Now vs Delay</div>
+                <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 15 }}>⏳ Start Now vs Delay</div>
                 <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
                   <li>
                     <strong>Cost of waiting:</strong> Delaying <strong>{delayYears}</strong> years reduces your balance at retirement by about {" "}
@@ -1136,7 +1139,7 @@ export default function App() {
           </section>
         </div>
 
-        <footer style={{ color: theme.muted, fontSize: 12, padding: "10px 2px", textAlign: "center", lineHeight: 1.6 }}>
+        <footer className="ut-mobile-footer" style={{ color: theme.muted, fontSize: 12, padding: "10px 2px", textAlign: "center", lineHeight: 1.6 }}>
           © 2025 Ultimate Target · Educational only — not financial advice · Built by Michael Leggo.
         </footer>
       </div>
