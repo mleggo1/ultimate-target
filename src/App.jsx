@@ -549,10 +549,11 @@ export default function App() {
   };
 
   // ---- UI ----
-  const QuickButton = ({ onClick, children, title }) => (
+  const QuickButton = ({ onClick, children, title, className }) => (
     <button
       onClick={onClick}
       title={title}
+      className={className}
       style={{
         border: `1px solid ${theme.border}`,
         background: theme.cardBg,
@@ -594,11 +595,11 @@ export default function App() {
                 Type exact values or drag sliders. Auto‑save on. Shift+↑/↓ steps x10.
               </p>
             </div>
-            <div className="ut-mobile-buttons" style={{ display: "flex", gap: 8 }}>
+            <div className="ut-mobile-buttons ut-desktop-buttons" style={{ display: "flex", gap: 8 }}>
               <QuickButton onClick={() => setDark((d) => !d)} title="Toggle Night/Day">
                 {dark ? "🌙 Night" : "☀️ Day"}
               </QuickButton>
-              <QuickButton onClick={exportPDF} title="Export PDF for clients">📄 PDF</QuickButton>
+              <QuickButton className="ut-pdf-button" onClick={exportPDF} title="Export PDF for clients">📄 PDF</QuickButton>
             </div>
           </header>
 
@@ -627,7 +628,32 @@ export default function App() {
           </div>
 
           {/* Presets & Tabs - Collapsible on Mobile */}
-          <div className={`ut-mobile-menu-content ${mobileMenuOpen ? "ut-mobile-menu-open" : ""}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+          <div className={`ut-mobile-menu-content ${mobileMenuOpen ? "ut-mobile-menu-open" : ""}`} style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+            {/* Mobile-only theme toggle */}
+            <div className="ut-mobile-theme-toggle" style={{ display: "flex", gap: 6, alignItems: "center", paddingBottom: 8, borderBottom: `1px solid ${theme.border}`, marginBottom: 4 }}>
+              <span style={{ fontSize: 12, color: theme.muted, marginRight: 4 }}>Theme:</span>
+              <button
+                onClick={() => setDark((d) => !d)}
+                title="Toggle Night/Day"
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: `1px solid ${theme.border}`,
+                  background: theme.cardBg,
+                  color: theme.text,
+                  cursor: "pointer",
+                  fontSize: 20,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 40,
+                  minHeight: 40,
+                }}
+              >
+                {dark ? "🌙" : "☀️"}
+              </button>
+            </div>
             <div className="ut-mobile-presets" style={{ display: "flex", gap: 6 }}>
               {["Conservative", "Balanced", "Growth"].map((p) => (
                 <button

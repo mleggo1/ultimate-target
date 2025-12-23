@@ -54,6 +54,18 @@
     max-height: none !important;
     overflow: visible !important;
   }
+
+  .ut-mobile-theme-toggle {
+    display: none !important; /* Hide mobile theme toggle on desktop */
+  }
+
+  .ut-mobile-buttons {
+    display: flex !important; /* Show desktop buttons */
+  }
+
+  .ut-pdf-button {
+    display: block !important; /* Show PDF button on desktop */
+  }
 }
 
 .ut-gate-card {
@@ -239,16 +251,22 @@
   }
 
   .ut-mobile-buttons {
-    width: 100%;
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
+    display: none !important; /* Hide on mobile */
   }
 
-  .ut-mobile-buttons button {
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    min-width: auto;
+  .ut-desktop-buttons {
+    display: flex !important; /* Show on desktop */
+  }
+
+  /* Hide PDF button on mobile */
+  .ut-pdf-button {
+    display: none !important;
+  }
+
+  /* Mobile theme toggle in collapsible menu */
+  .ut-mobile-theme-toggle {
+    display: flex !important;
+    width: 100%;
   }
 
   /* Mobile collapsible menu */
@@ -280,7 +298,7 @@
   }
 
   .ut-mobile-menu-content.ut-mobile-menu-open {
-    max-height: 200px;
+    max-height: 300px;
     transition: max-height 0.3s ease-in;
   }
 
