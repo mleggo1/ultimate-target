@@ -594,14 +594,38 @@ export default function App() {
                 margin: 0, 
                 fontSize: 22, 
                 fontWeight: 900,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.3,
-                color: dark ? "#e6eefc" : "#0f172a",
-                textShadow: dark 
-                  ? "0 2px 8px rgba(96, 165, 250, 0.4), 0 0 20px rgba(96, 165, 250, 0.2)"
-                  : "0 2px 4px rgba(0, 0, 0, 0.1)",
+                letterSpacing: "-0.01em",
+                lineHeight: 1.4,
+                background: dark 
+                  ? "linear-gradient(135deg, #ffffff 0%, #e6eefc 30%, #60a5fa 70%, #2dd4bf 100%)"
+                  : "linear-gradient(135deg, #0f172a 0%, #1e40af 40%, #059669 80%, #0f172a 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                position: "relative",
               }}>
-                Ultimate Target — Compounding • Fees • Target
+                <span style={{ 
+                  display: "inline-block",
+                  background: dark 
+                    ? "linear-gradient(135deg, #ffffff 0%, #60a5fa 50%, #2dd4bf 100%)"
+                    : "linear-gradient(135deg, #1e40af 0%, #059669 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  fontWeight: 900,
+                  fontSize: "1.1em",
+                  letterSpacing: "-0.02em",
+                }}>
+                  Ultimate Target
+                </span>
+                <span style={{ 
+                  marginLeft: 8,
+                  opacity: 0.9,
+                  fontSize: "0.85em",
+                  fontWeight: 700,
+                }}>
+                  — Compounding • Fees • Target
+                </span>
               </h1>
               <p style={{ margin: "6px 0 0 0", color: theme.muted, fontSize: 12 }}>
                 Type exact values or drag sliders. Auto‑save on. Shift+↑/↓ steps x10.
