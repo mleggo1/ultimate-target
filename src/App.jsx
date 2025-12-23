@@ -596,13 +596,8 @@ export default function App() {
                 fontWeight: 900,
                 letterSpacing: "-0.01em",
                 lineHeight: 1.4,
-                background: dark 
-                  ? "linear-gradient(135deg, #ffffff 0%, #e6eefc 30%, #60a5fa 70%, #2dd4bf 100%)"
-                  : "linear-gradient(135deg, #0f172a 0%, #1e40af 40%, #059669 80%, #0f172a 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
                 position: "relative",
+                color: dark ? "#e6eefc" : "#0f172a", // Fallback color
               }}>
                 <span style={{ 
                   display: "inline-block",
@@ -612,6 +607,7 @@ export default function App() {
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
+                  color: dark ? "#ffffff" : "#1e40af", // Fallback for browsers that don't support gradient text
                   fontWeight: 900,
                   fontSize: "1.1em",
                   letterSpacing: "-0.02em",
@@ -620,9 +616,10 @@ export default function App() {
                 </span>
                 <span style={{ 
                   marginLeft: 8,
-                  opacity: 0.9,
+                  color: dark ? "#9fb0d1" : "#475569",
                   fontSize: "0.85em",
                   fontWeight: 700,
+                  opacity: 0.95,
                 }}>
                   — Compounding • Fees • Target
                 </span>
