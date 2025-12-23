@@ -596,7 +596,7 @@ export default function App() {
               </p>
             </div>
             <div className="ut-mobile-buttons ut-desktop-buttons" style={{ display: "flex", gap: 8 }}>
-              <QuickButton onClick={() => setDark((d) => !d)} title="Toggle Night/Day">
+              <QuickButton className="ut-theme-button" onClick={() => setDark((d) => !d)} title="Toggle Night/Day">
                 {dark ? "🌙 Night" : "☀️ Day"}
               </QuickButton>
               <QuickButton className="ut-pdf-button" onClick={exportPDF} title="Export PDF for clients">📄 PDF</QuickButton>

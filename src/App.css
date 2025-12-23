@@ -66,6 +66,10 @@
   .ut-pdf-button {
     display: block !important; /* Show PDF button on desktop */
   }
+
+  .ut-theme-button {
+    display: block !important; /* Show theme button on desktop */
+  }
 }
 
 .ut-gate-card {
@@ -258,8 +262,12 @@
     display: flex !important; /* Show on desktop */
   }
 
-  /* Hide PDF button on mobile */
+  /* Hide PDF button and theme button on mobile */
   .ut-pdf-button {
+    display: none !important;
+  }
+
+  .ut-theme-button {
     display: none !important;
   }
 
