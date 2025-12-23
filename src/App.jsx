@@ -597,9 +597,8 @@ export default function App() {
                 letterSpacing: "-0.01em",
                 lineHeight: 1.4,
                 position: "relative",
-                color: dark ? "#e6eefc" : "#0f172a", // Fallback color
               }}>
-                <span style={{ 
+                <span className="ut-title-primary" style={{ 
                   display: "inline-block",
                   background: dark 
                     ? "linear-gradient(135deg, #ffffff 0%, #60a5fa 50%, #2dd4bf 100%)"
@@ -607,14 +606,14 @@ export default function App() {
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
-                  color: dark ? "#ffffff" : "#1e40af", // Fallback for browsers that don't support gradient text
+                  color: dark ? "#e6eefc" : "#1e40af", // Fallback for browsers that don't support gradient text
                   fontWeight: 900,
                   fontSize: "1.1em",
                   letterSpacing: "-0.02em",
                 }}>
                   Ultimate Target
                 </span>
-                <span style={{ 
+                <span className="ut-title-subtitle" style={{ 
                   marginLeft: 8,
                   color: dark ? "#9fb0d1" : "#475569",
                   fontSize: "0.85em",
