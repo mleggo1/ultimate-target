@@ -595,34 +595,13 @@ export default function App() {
                 fontSize: 22, 
                 fontWeight: 900,
                 letterSpacing: "-0.02em",
-                lineHeight: 1.2,
-                background: dark 
-                  ? "linear-gradient(135deg, #e6eefc 0%, #9fb0d1 50%, #60a5fa 100%)"
-                  : "linear-gradient(135deg, #0f172a 0%, #2563eb 50%, #059669 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
+                lineHeight: 1.3,
+                color: dark ? "#e6eefc" : "#0f172a",
                 textShadow: dark 
-                  ? "0 0 30px rgba(96, 165, 250, 0.3)"
+                  ? "0 2px 8px rgba(96, 165, 250, 0.4), 0 0 20px rgba(96, 165, 250, 0.2)"
                   : "0 2px 4px rgba(0, 0, 0, 0.1)",
               }}>
-                Ultimate Target
-                <span style={{ 
-                  display: "block",
-                  fontSize: "0.7em",
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
-                  opacity: 0.85,
-                  marginTop: "2px",
-                  background: dark
-                    ? "linear-gradient(135deg, #9fb0d1 0%, #60a5fa 100%)"
-                    : "linear-gradient(135deg, #475569 0%, #2563eb 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}>
-                  Compounding • Fees • Target
-                </span>
+                Ultimate Target — Compounding • Fees • Target
               </h1>
               <p style={{ margin: "6px 0 0 0", color: theme.muted, fontSize: 12 }}>
                 Type exact values or drag sliders. Auto‑save on. Shift+↑/↓ steps x10.
@@ -661,7 +640,7 @@ export default function App() {
           </div>
 
           {/* Presets & Tabs - Collapsible on Mobile */}
-          <div className={`ut-mobile-menu-content ${mobileMenuOpen ? "ut-mobile-menu-open" : ""}`} style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+          <div className={`ut-mobile-menu-content ut-presets-tabs-container ${mobileMenuOpen ? "ut-mobile-menu-open" : ""}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 8 }}>
             {/* Mobile-only theme toggle */}
             <div className="ut-mobile-theme-toggle" style={{ display: "flex", gap: 6, alignItems: "center", paddingBottom: 8, borderBottom: `1px solid ${theme.border}`, marginBottom: 4 }}>
               <span style={{ fontSize: 12, color: theme.muted, marginRight: 4 }}>Theme:</span>
@@ -687,38 +666,44 @@ export default function App() {
                 {dark ? "🌙" : "☀️"}
               </button>
             </div>
-            <div className="ut-mobile-presets" style={{ display: "flex", gap: 6 }}>
+            {/* Presets on left */}
+            <div className="ut-mobile-presets ut-presets-left" style={{ display: "flex", gap: 4 }}>
               {["Conservative", "Balanced", "Growth"].map((p) => (
                 <button
                   key={p}
                   onClick={() => applyPreset(p)}
                   style={{
-                    padding: "6px 10px",
-                    borderRadius: 10,
+                    padding: "5px 10px",
+                    borderRadius: 8,
                     border: `1px solid ${theme.border}`,
                     background: activePreset === p ? theme.primary : theme.cardBg,
                     color: activePreset === p ? "#fff" : theme.text,
                     cursor: "pointer",
                     fontWeight: 700,
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {p}
                 </button>
               ))}
             </div>
-            <div className="ut-mobile-tabs" style={{ display: "flex", gap: 8 }}>
+            {/* Tabs on right */}
+            <div className="ut-mobile-tabs ut-tabs-right" style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
               {[TABS.COMPOUND, TABS.FEES, TABS.TARGET].map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: 12,
+                    padding: "6px 10px",
+                    borderRadius: 10,
                     border: `1px solid ${theme.border}`,
                     cursor: "pointer",
                     background: tab === t ? theme.primary : theme.cardBg,
                     color: tab === t ? "#fff" : theme.text,
                     fontWeight: 700,
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {t}
