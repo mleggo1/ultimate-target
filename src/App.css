@@ -44,6 +44,18 @@
   }
 }
 
+/* Hide mobile menu toggle on desktop */
+@media (min-width: 769px) {
+  .ut-mobile-menu-toggle {
+    display: none !important;
+  }
+
+  .ut-mobile-menu-content {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
 .ut-gate-card {
   width: min(420px, 100%);
   background: rgba(15, 23, 42, 0.85);
@@ -229,14 +241,23 @@
   .ut-mobile-buttons {
     width: 100%;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     justify-content: flex-end;
   }
 
   .ut-mobile-buttons button {
-    flex: 1;
-    padding: 10px 12px !important;
-    font-size: 14px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    min-width: auto;
+  }
+
+  /* Mobile collapsible menu */
+  .ut-mobile-menu-toggle {
+    display: none;
+  }
+
+  .ut-mobile-menu-content {
+    display: flex !important;
   }
 
   /* Mobile tabs and presets */
@@ -245,13 +266,32 @@
     gap: 12px !important;
   }
 
+  /* Mobile collapsible menu */
+  .ut-mobile-menu-toggle {
+    display: block !important;
+  }
+
+  .ut-mobile-menu-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .ut-mobile-menu-content.ut-mobile-menu-open {
+    max-height: 200px;
+    transition: max-height 0.3s ease-in;
+  }
+
   .ut-mobile-presets {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 4px;
+    width: 100%;
   }
 
   .ut-mobile-presets::-webkit-scrollbar {
@@ -260,18 +300,19 @@
 
   .ut-mobile-presets button {
     flex-shrink: 0;
-    padding: 8px 12px !important;
-    font-size: 13px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
     white-space: nowrap;
   }
 
   .ut-mobile-tabs {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 4px;
+    width: 100%;
   }
 
   .ut-mobile-tabs::-webkit-scrollbar {
@@ -280,8 +321,8 @@
 
   .ut-mobile-tabs button {
     flex-shrink: 0;
-    padding: 10px 14px !important;
-    font-size: 14px !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
     white-space: nowrap;
   }
 
@@ -291,12 +332,39 @@
     height: 400px !important;
     min-height: 400px !important;
     margin: 0 !important;
+    overflow: visible;
+  }
+
+  .ut-mobile-chart-container .recharts-wrapper {
+    width: 100% !important;
+  }
+
+  .ut-mobile-chart-container .recharts-surface {
+    overflow: visible;
   }
 
   .ut-mobile-chart-title {
     font-size: 16px !important;
     line-height: 1.4;
     margin-bottom: 12px !important;
+  }
+
+  /* Prevent label overlap on mobile charts */
+  .ut-mobile-chart-container .recharts-cartesian-axis-tick {
+    font-size: 10px !important;
+  }
+
+  .ut-mobile-chart-container .recharts-xAxis {
+    margin-bottom: 8px !important;
+  }
+
+  .ut-mobile-chart-container .recharts-yAxis {
+    margin-left: -8px !important;
+  }
+
+  .ut-mobile-chart-container .recharts-legend-wrapper {
+    font-size: 11px !important;
+    padding: 4px !important;
   }
 
   .ut-mobile-chart-controls {

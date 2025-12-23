@@ -185,6 +185,7 @@ export default function App() {
   // View toggles
   const [compareAdv, setCompareAdv] = useState(false); // in TARGET tab: DIY vs Adviser
   const [activePreset, setActivePreset] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile collapsible menu
 
   // ---- Persist & URL import
   useEffect(() => {
@@ -601,8 +602,32 @@ export default function App() {
             </div>
           </header>
 
-          {/* Presets & Tabs */}
-          <div className="ut-mobile-tabs-container" style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+          {/* Mobile Collapsible Menu */}
+          <div className="ut-mobile-menu-toggle" style={{ marginTop: 8 }}>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: `1px solid ${theme.border}`,
+                background: theme.cardBg,
+                color: theme.text,
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: 13,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>Options & Presets</span>
+              <span style={{ fontSize: 16 }}>{mobileMenuOpen ? "−" : "+"}</span>
+            </button>
+          </div>
+
+          {/* Presets & Tabs - Collapsible on Mobile */}
+          <div className={`ut-mobile-menu-content ${mobileMenuOpen ? "ut-mobile-menu-open" : ""}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
             <div className="ut-mobile-presets" style={{ display: "flex", gap: 6 }}>
               {["Conservative", "Balanced", "Growth"].map((p) => (
                 <button
@@ -938,27 +963,38 @@ export default function App() {
 
             <div className="ut-mobile-chart-container" style={{ width: "100%", height: 460 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 40, right: 24, left: 12, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 10, right: 5, left: -10, bottom: 50 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis
                     type="number"
                     dataKey="age"
                     domain={[startAge, endAge]}
                     ticks={ageTicks}
-                    interval={0}
+                    interval="preserveStartEnd"
                     allowDecimals={false}
                     tickFormatter={(t) => `${t}`}
-                    tick={{ fill: theme.axis }}
-                    minTickGap={12}
+                    tick={{ fill: theme.axis, fontSize: 11 }}
+                    minTickGap={30}
                     tickMargin={8}
+                    height={50}
                   />
-                  <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis }} />
+                  <YAxis 
+                    tickFormatter={fmtAxis} 
+                    tick={{ fill: theme.axis, fontSize: 11 }} 
+                    width={50}
+                    tickMargin={5}
+                  />
                   <Tooltip
                     formatter={(v, n) => [fmtAUD(v), n]}
                     labelFormatter={(l) => `Age ${l}`}
                     contentStyle={{ backgroundColor: theme.cardBg, borderColor: theme.border, color: theme.text }}
                   />
-                  <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text }} />
+                  <Legend 
+                    verticalAlign="top" 
+                    align="right" 
+                    wrapperStyle={{ color: theme.text, fontSize: 11, padding: "4px 0" }}
+                    iconSize={12}
+                  />
                   <ReLine type="monotone" dataKey="baseNominal" name={baseLabel} stroke={theme.accent} strokeWidth={3} dot={false} />
                   <ReLine type="monotone" dataKey="baseReal" name={"Start Now — Real $"} stroke={theme.primary} strokeWidth={3} strokeDasharray="6 6" dot={false} />
                   <ReLine
