@@ -719,7 +719,7 @@ export default function App() {
           <section className="ut-mobile-section" style={{ ...themeCard, marginTop: 10 }}>
             <div className="ut-mobile-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10 }}>
               <Chip>
-                <span className="ut-mobile-chip">👤 To Retirement: <strong>{Math.max(0, retirementAge - currentAge)}</strong> yrs</span>
+                <span className="ut-mobile-chip">👤 To Retirement: <strong style={{ whiteSpace: "nowrap" }}>{Math.max(0, retirementAge - currentAge)} yrs</strong></span>
               </Chip>
               <Chip>
                 <span className="ut-mobile-chip">💰 Invested: <strong>{fmtAUD(monthlySave * 12 * Math.max(0, retirementAge - currentAge))}</strong></span>
