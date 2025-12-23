@@ -33,6 +33,30 @@
   box-sizing: border-box;
 }
 
+/* Enhanced Title Styling */
+.ut-title-main {
+  position: relative;
+  display: inline-block;
+}
+
+.ut-title-main::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.1), transparent);
+  opacity: 0;
+  animation: shimmer 3s infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
 @media (max-width: 900px) {
   .ut-shell {
     padding: 24px 16px;
@@ -69,6 +93,17 @@
 
   .ut-theme-button {
     display: block !important; /* Show theme button on desktop */
+  }
+
+  /* Enhanced desktop title */
+  .ut-title-main {
+    font-size: 28px !important;
+    letter-spacing: -0.03em !important;
+  }
+
+  .ut-title-main span {
+    font-size: 0.65em !important;
+    letter-spacing: 0.08em !important;
   }
 }
 
@@ -246,8 +281,17 @@
   }
 
   .ut-mobile-header h1 {
-    font-size: 18px !important;
+    font-size: 20px !important;
     line-height: 1.3;
+  }
+
+  .ut-title-main {
+    font-size: 20px !important;
+  }
+
+  .ut-title-main span {
+    font-size: 0.65em !important;
+    margin-top: 3px !important;
   }
 
   .ut-mobile-header p {

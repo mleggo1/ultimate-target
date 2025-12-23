@@ -590,8 +590,41 @@ export default function App() {
         <div style={{ position: "sticky", top: 0, zIndex: 5, paddingBottom: 8, background: theme.pageBg }}>
           <header className="ut-mobile-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Ultimate Target — Compounding • Fees • Target</h1>
-              <p style={{ margin: 0, color: theme.muted, fontSize: 12 }}>
+              <h1 className="ut-title-main" style={{ 
+                margin: 0, 
+                fontSize: 22, 
+                fontWeight: 900,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.2,
+                background: dark 
+                  ? "linear-gradient(135deg, #e6eefc 0%, #9fb0d1 50%, #60a5fa 100%)"
+                  : "linear-gradient(135deg, #0f172a 0%, #2563eb 50%, #059669 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                textShadow: dark 
+                  ? "0 0 30px rgba(96, 165, 250, 0.3)"
+                  : "0 2px 4px rgba(0, 0, 0, 0.1)",
+              }}>
+                Ultimate Target
+                <span style={{ 
+                  display: "block",
+                  fontSize: "0.7em",
+                  fontWeight: 700,
+                  letterSpacing: "0.05em",
+                  opacity: 0.85,
+                  marginTop: "2px",
+                  background: dark
+                    ? "linear-gradient(135deg, #9fb0d1 0%, #60a5fa 100%)"
+                    : "linear-gradient(135deg, #475569 0%, #2563eb 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}>
+                  Compounding • Fees • Target
+                </span>
+              </h1>
+              <p style={{ margin: "6px 0 0 0", color: theme.muted, fontSize: 12 }}>
                 Type exact values or drag sliders. Auto‑save on. Shift+↑/↓ steps x10.
               </p>
             </div>
