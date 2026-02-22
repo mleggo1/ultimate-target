@@ -1027,7 +1027,7 @@ export default function App() {
 
             <div className="ut-mobile-chart-container" style={{ width: "100%", height: 460 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 10, right: 5, left: -10, bottom: 50 }}>
+                <ComposedChart data={chartRows} margin={{ top: 10, right: 5, left: 12, bottom: 50 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis
                     type="number"
@@ -1045,7 +1045,7 @@ export default function App() {
                   <YAxis 
                     tickFormatter={fmtAxis} 
                     tick={{ fill: theme.axis, fontSize: 11 }} 
-                    width={50}
+                    width={56}
                     tickMargin={5}
                   />
                   <Tooltip

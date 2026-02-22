@@ -536,7 +536,7 @@
   }
 
   .ut-mobile-chart-container .recharts-yAxis {
-    margin-left: -8px !important;
+    margin-left: 0 !important;
   }
 
   .ut-mobile-chart-container .recharts-legend-wrapper {
