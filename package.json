@@ -2,10 +2,12 @@
   "name": "investment-matchmaker",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "homepage": "https://mleggo1.github.io/Investment-Matchmaker/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "node --test src/simulate.test.js",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },

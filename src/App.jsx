@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import "./App.css";
+import { getBalanceAtAge, maxSustainableSpendToday, parseNumericInput, simulate } from "./simulate";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -81,65 +82,6 @@ const fmtAxis = (v) => {
       : String(Math.round(a));
   return (n < 0 ? "-$" : "$") + s;
 };
-
-// ============== Simulation (monthly) =================
-function simulate({
-  currentAge,
-  retirementAge,
-  horizonYears,
-  startAssets,
-  monthlySave,
-  preAnnualGross,
-  postRealAnnualGross,
-  inflationAnnual,
-  annualSpendToday,
-  delayYears,
-  feeAnnualPre = 0,
-  feeAnnualPost = 0,
-  fixedFeeAnnual = 0,
-}) {
-  const months = Math.max(1, Math.round(horizonYears * 12));
-  const preNet = Math.max(-0.99, preAnnualGross - feeAnnualPre);
-  const postNominal = (1 + postRealAnnualGross) * (1 + inflationAnnual) - 1;
-  const postNet = Math.max(-0.99, postNominal - feeAnnualPost);
-  const mPre = Math.pow(1 + preNet, 1 / 12) - 1;
-  const mPost = Math.pow(1 + postNet, 1 / 12) - 1;
-  const mInfl = Math.pow(1 + inflationAnnual, 1 / 12) - 1;
-  const mFix = Math.max(0, fixedFeeAnnual) / 12;
-  const toRet = Math.max(0, Math.round((retirementAge - currentAge) * 12));
-  const dly = Math.max(0, Math.round(delayYears * 12));
-
-  const rows = [];
-  let bal = Math.max(0, startAssets);
-  let dep = null;
-  rows.push({ age: Math.floor(currentAge), nominal: bal, real: bal });
-
-  for (let m = 1; m <= months; m++) {
-    const age = currentAge + m / 12;
-    const pre = m <= toRet;
-    const r = pre ? mPre : mPost;
-    const c = pre && m > dly ? monthlySave : 0;
-    const msr = Math.max(0, m - toRet);
-    const sp = msr > 0 ? (annualSpendToday / 12) * Math.pow(1 + mInfl, msr) : 0;
-
-    bal = bal * (1 + r) + c - sp - mFix;
-    if (bal <= 0 && !dep) dep = age;
-    if (bal < 0) bal = 0;
-
-    if (m % 12 === 0) {
-      const d = Math.pow(1 + mInfl, m);
-      rows.push({ age: Math.floor(age), nominal: bal, real: bal / d });
-    }
-  }
-
-  return {
-    rows,
-    endNom: bal,
-    endReal: rows[rows.length - 1]?.real ?? bal,
-    depletedAge: dep ? Math.floor(dep) : null,
-    depletedAgeExact: dep,
-  };
-}
 
 // ============== App ======================
 export default function App() {
@@ -332,42 +274,25 @@ export default function App() {
   const ut_delay = ut_diy_delay;
 
   // ---- Sustainable Spend (binary search)
-  const sustainableSpendToday = useMemo(() => {
-    const p = {
-      currentAge,
-      retirementAge,
-      horizonYears,
-      startAssets: Math.max(0, initialAmount),
-      monthlySave,
-      preAnnualGross: Math.max(0, returnPa) / 100,
-      postRealAnnualGross: postRetRealPa / 100,
-      inflationAnnual: Math.max(0, inflationPa) / 100,
-      delayYears: Math.max(0, delayYears),
-      feeAnnualPre: Math.max(0, diyFeePct) / 100,
-      feeAnnualPost: Math.max(0, diyFeePct) / 100,
-      fixedFeeAnnual: 0,
-    };
-    const sim = (s) => simulate({ ...p, annualSpendToday: s });
-    const zero = sim(0);
-    if (zero.depletedAge && zero.depletedAge <= lifeExpectancy) return 0;
-    let lo = 0,
-      hi = 100000,
-      max = 5e7,
-      tol = 0.1;
-    const lasts = (s) => {
-      const t = sim(s);
-      const d = t.depletedAgeExact == null ? Infinity : t.depletedAgeExact;
-      return d >= lifeExpectancy - tol;
-    };
-    while (lasts(hi) && hi < max) hi *= 2;
-    if (hi >= max) return hi;
-    for (let i = 0; i < 34; i++) {
-      const m = (lo + hi) / 2;
-      if (lasts(m)) lo = m;
-      else hi = m;
-    }
-    return Math.round(lo);
-  }, [currentAge, retirementAge, lifeExpectancy, horizonYears, initialAmount, monthlySave, returnPa, postRetRealPa, inflationPa, delayYears, diyFeePct]);
+  const sustainableSpendToday = useMemo(
+    () =>
+      maxSustainableSpendToday({
+        currentAge,
+        retirementAge,
+        horizonYears,
+        startAssets: Math.max(0, initialAmount),
+        monthlySave,
+        preAnnualGross: Math.max(0, returnPa) / 100,
+        postRealAnnualGross: postRetRealPa / 100,
+        inflationAnnual: Math.max(0, inflationPa) / 100,
+        delayYears: Math.max(0, delayYears),
+        feeAnnualPre: Math.max(0, diyFeePct) / 100,
+        feeAnnualPost: Math.max(0, diyFeePct) / 100,
+        fixedFeeAnnual: Math.max(0, diyFixed),
+        lifeExpectancy,
+      }),
+    [currentAge, retirementAge, lifeExpectancy, horizonYears, initialAmount, monthlySave, returnPa, postRetRealPa, inflationPa, delayYears, diyFeePct, diyFixed]
+  );
 
   // ---- Chart rows & ticks ----
   const startAge = useMemo(() => Math.round(currentAge), [currentAge]);
@@ -443,41 +368,6 @@ export default function App() {
   const feeDragHznPct = (fees_diy.endNom || 0) > 0 ? Math.round((feeDragAtHorizon / fees_diy.endNom) * 100) : 0;
 
   // ---- Enhanced DIY vs Adviser Analysis ----
-  const calculateTotalFeesPaid = (runOutAge, feePct, fixedFee) => {
-    if (!runOutAge || runOutAge > lifeExpectancy) return 0;
-    let totalFees = 0;
-    const startYear = Math.floor(currentAge);
-    const endYear = Math.floor(runOutAge);
-    
-    // Calculate fees year by year based on actual balances
-    for (let age = startYear; age < endYear; age++) {
-      // Find the row for this age (or closest)
-      const yearRow = ut_adv_now.rows.find(r => r.age === age);
-      if (!yearRow) continue;
-      
-      const balanceAtYearStart = yearRow.nominal;
-      
-      // Annual percentage fee (applied to balance)
-      const pctFee = balanceAtYearStart * (feePct / 100);
-      // Fixed fee
-      const fixed = fixedFee;
-      totalFees += pctFee + fixed;
-    }
-    
-    // Add partial year if run-out age is not a whole number
-    if (runOutAge % 1 !== 0) {
-      const finalRow = ut_adv_now.rows.find(r => r.age >= Math.floor(runOutAge));
-      if (finalRow) {
-        const partialBalance = finalRow.nominal;
-        const partialPctFee = partialBalance * (feePct / 100) * (runOutAge % 1);
-        const partialFixed = fixedFee * (runOutAge % 1);
-        totalFees += partialPctFee + partialFixed;
-      }
-    }
-    
-    return Math.round(totalFees);
-  };
-
   const adviserRunOutAge = ut_adv_now.depletedAge;
   const diyRunOutAge = ut_diy_now.depletedAge;
   const adviserRunsOutEarly = adviserRunOutAge && (!diyRunOutAge || adviserRunOutAge < diyRunOutAge);
@@ -487,13 +377,11 @@ export default function App() {
     ? lifeExpectancy - adviserRunOutAge 
     : 0;
 
-  const totalFeesPaid = adviserRunsOutEarly 
-    ? calculateTotalFeesPaid(adviserRunOutAge, advisorFeePct, advisorFixed)
-    : 0;
+  const totalFeesPaid = adviserRunsOutEarly ? Math.round(ut_adv_now.totalFees || 0) : 0;
 
   // Find DIY balance at adviser run-out age
   const diyBalanceAtAdviserRunOut = adviserRunsOutEarly && adviserRunOutAge
-    ? (ut_diy_now.rows.find(r => r.age >= adviserRunOutAge) || ut_diy_now.rows[ut_diy_now.rows.length - 1])?.nominal || 0
+    ? getBalanceAtAge(ut_diy_now.rows, adviserRunOutAge)
     : 0;
 
   const opportunityCost = adviserRunsOutEarly ? diyBalanceAtAdviserRunOut : 0;
@@ -1258,7 +1146,7 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
   }, [value, focus]);
 
   const commit = () => {
-    const raw = money ? Number(String(text).replace(/[^0-9]/g, "")) : Number(text);
+    const raw = parseNumericInput(text, { money });
     const v = Number.isFinite(raw) ? raw : value;
     const c = clamp(v, min, max);
     onChange(c);
@@ -1343,102 +1231,6 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
     </div>
   );
 }
-
-// ============== Tiny test harness ===================
-(function runTests() {
-  try {
-    const base = simulate({
-      currentAge: 40,
-      retirementAge: 60,
-      horizonYears: 50,
-      startAssets: 200000,
-      monthlySave: 1500,
-      preAnnualGross: 0.08,
-      postRealAnnualGross: 0.025,
-      inflationAnnual: 0.0,
-      annualSpendToday: 0,
-      delayYears: 0,
-      feeAnnualPre: 0.002,
-      feeAnnualPost: 0.002,
-      fixedFeeAnnual: 0,
-    });
-    console.assert(base.rows.length > 0, "simulate should return rows");
-    console.assert(typeof base.endNom === "number", "endNom should be number");
-
-    const delayed = simulate({
-      currentAge: 40,
-      retirementAge: 60,
-      horizonYears: 50,
-      startAssets: 200000,
-      monthlySave: 1500,
-      preAnnualGross: 0.08,
-      postRealAnnualGross: 0.025,
-      inflationAnnual: 0.0,
-      annualSpendToday: 0,
-      delayYears: 3,
-      feeAnnualPre: 0.002,
-      feeAnnualPost: 0.002,
-      fixedFeeAnnual: 0,
-    });
-    console.assert(base.endNom >= delayed.endNom, "Delaying contributions should not increase end balance in this setup");
-
-    const higherFees = simulate({
-      currentAge: 40,
-      retirementAge: 60,
-      horizonYears: 50,
-      startAssets: 200000,
-      monthlySave: 1500,
-      preAnnualGross: 0.08,
-      postRealAnnualGross: 0.025,
-      inflationAnnual: 0.0,
-      annualSpendToday: 0,
-      delayYears: 0,
-      feeAnnualPre: 0.02,
-      feeAnnualPost: 0.02,
-      fixedFeeAnnual: 0,
-    });
-    console.assert(base.endNom > higherFees.endNom, "Higher fees should reduce end balance");
-
-    const withSpend = simulate({
-      currentAge: 40,
-      retirementAge: 60,
-      horizonYears: 50,
-      startAssets: 200000,
-      monthlySave: 1500,
-      preAnnualGross: 0.08,
-      postRealAnnualGross: 0.025,
-      inflationAnnual: 0.02,
-      annualSpendToday: 60000,
-      delayYears: 0,
-      feeAnnualPre: 0.002,
-      feeAnnualPost: 0.002,
-      fixedFeeAnnual: 0,
-    });
-    console.assert(withSpend.endNom <= base.endNom, "Adding drawdown spend should not increase ending balance");
-    console.assert(withSpend.endReal <= withSpend.endNom, "With inflation > 0, real end balance should be <= nominal end balance");
-
-    const zeroInfl = simulate({
-      currentAge: 40,
-      retirementAge: 60,
-      horizonYears: 50,
-      startAssets: 200000,
-      monthlySave: 1500,
-      preAnnualGross: 0.08,
-      postRealAnnualGross: 0.025,
-      inflationAnnual: 0.0,
-      annualSpendToday: 0,
-      delayYears: 0,
-      feeAnnualPre: 0.0,
-      feeAnnualPost: 0.0,
-      fixedFeeAnnual: 0,
-    });
-    console.assert(Math.abs(zeroInfl.endReal - zeroInfl.endNom) < 1e-6, "With 0% inflation, real ~= nominal at end");
-
-    console.log("✅ simulate() basic tests passed");
-  } catch (e) {
-    console.warn("❌ simulate() tests encountered an error", e);
-  }
-})();
 
 function PasswordGate({ children }) {
   const [input, setInput] = useState("");
