@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import "./App.css";
-import { getBalanceAtAge, maxSustainableSpendToday, parseNumericInput, simulate } from "./simulate";
+import { getBalanceAtAge, maxSustainableSpendToday, normalizeContributionState, parseNumericInput, simulate } from "./simulate";
+import Contributions from "./Contributions";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -103,7 +104,7 @@ export default function App() {
   }, [dark]);
   const theme = dark ? THEME.dark : THEME.light;
 
-  const TABS = { COMPOUND: "Compounding", FEES: "Fees", TARGET: "Ultimate Target" };
+  const TABS = { COMPOUND: "Compounding", FEES: "Fees", TARGET: "Ultimate Target", CONTRIBUTIONS: "Contributions" };
   const [tab, setTab] = useState(TABS.COMPOUND);
 
   // ---- State (defaults)
@@ -127,6 +128,8 @@ export default function App() {
   // View toggles
   const [compareAdv, setCompareAdv] = useState(false); // in TARGET tab: DIY vs Adviser
   const [activePreset, setActivePreset] = useState("");
+  const [contributionSchedules, setContributionSchedules] = useState([]);
+  const [lumpSums, setLumpSums] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile collapsible menu
 
   // ---- Persist & URL import
@@ -165,6 +168,8 @@ export default function App() {
     compareAdv,
     dark,
     activePreset,
+    contributionSchedules,
+    lumpSums,
   });
 
   const applyState = (s) => {
@@ -188,14 +193,21 @@ export default function App() {
     setCompareAdv(!!s.compareAdv);
     setDark(s.dark ?? true);
     setActivePreset(s.activePreset ?? "");
+    const savedContributions = normalizeContributionState(s);
+    setContributionSchedules(savedContributions.contributionSchedules);
+    setLumpSums(savedContributions.lumpSums);
   };
 
   useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(snapshot()));
     } catch {}
     // eslint-disable-next-line
-  }, [client, currentAge, retirementAge, lifeExpectancy, initialAmount, monthlySave, annualSpendToday, delayYears, returnPa, postRetRealPa, inflationPa, diyFeePct, diyFixed, advisorFeePct, advisorFixed, tab, compareAdv, dark, activePreset]);
+  }, [client, currentAge, retirementAge, lifeExpectancy, initialAmount, monthlySave, annualSpendToday, delayYears, returnPa, postRetRealPa, inflationPa, diyFeePct, diyFixed, advisorFeePct, advisorFixed, tab, compareAdv, dark, activePreset, contributionSchedules, lumpSums]);
 
   const themeCard = {
     background: theme.cardBg,
@@ -394,6 +406,7 @@ export default function App() {
 
   // ---- Exports ----
   const pdfRef = useRef(null);
+  const skipFirstSave = useRef(true);
 
   const exportPDF = async () => {
     const n = pdfRef.current;
@@ -508,7 +521,7 @@ export default function App() {
                   fontWeight: 700,
                   opacity: 0.95,
                 }}>
-                  — Compounding • Fees • Target
+                  — Compounding • Fees • Target • Contributions
                 </span>
               </h1>
               <p style={{ margin: "6px 0 0 0", color: theme.muted, fontSize: 12 }}>
@@ -598,7 +611,7 @@ export default function App() {
             </div>
             {/* Tabs on right */}
             <div className="ut-mobile-tabs ut-tabs-right" style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-              {[TABS.COMPOUND, TABS.FEES, TABS.TARGET].map((t) => (
+              {[TABS.COMPOUND, TABS.FEES, TABS.TARGET, TABS.CONTRIBUTIONS].map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -641,6 +654,30 @@ export default function App() {
             </div>
           </section>
 
+          {tab === TABS.CONTRIBUTIONS ? (
+            <Contributions
+              theme={theme}
+              currentAge={currentAge}
+              retirementAge={retirementAge}
+              lifeExpectancy={lifeExpectancy}
+              initialAmount={initialAmount}
+              monthlySave={monthlySave}
+              returnPa={returnPa}
+              postRetRealPa={postRetRealPa}
+              inflationPa={inflationPa}
+              diyFeePct={diyFeePct}
+              diyFixed={diyFixed}
+              annualSpendToday={annualSpendToday}
+              schedules={contributionSchedules}
+              setSchedules={setContributionSchedules}
+              lumpSums={lumpSums}
+              setLumpSums={setLumpSums}
+              ageTicks={ageTicks}
+              startAge={startAge}
+              endAge={endAge}
+            />
+          ) : (
+          <>
           {/* Controls */}
           <section className="ut-mobile-section" style={{ ...themeCard, marginTop: 10 }}>
             <div className="ut-mobile-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
@@ -1125,6 +1162,8 @@ export default function App() {
               )}
             </div>
           </section>
+          </>
+          )}
         </div>
 
         <footer className="ut-mobile-footer" style={{ color: theme.muted, fontSize: 12, padding: "10px 2px", textAlign: "center", lineHeight: 1.6 }}>

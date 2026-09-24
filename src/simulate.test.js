@@ -5,12 +5,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   blueprintCalculateCompound,
+  formatContributionSummary,
   getBalanceAtAge,
+  hasFieldErrors,
   maxSustainableSpendToday,
+  normalizeContributionState,
   parseNumericInput,
   principalInvestedToRetirement,
+  requiredCapitalAtRetirement,
+  resolveContributions,
   rowAtAge,
   simulate,
+  validateLump,
+  validateSchedule,
 } from "./simulate.js";
 
 function accumulation(overrides = {}) {
@@ -393,5 +400,200 @@ describe("sustainable spend", () => {
     const withoutFixed = maxSustainableSpendToday({ ...args, fixedFeeAnnual: 0 });
     const withFixed = maxSustainableSpendToday({ ...args, fixedFeeAnnual: 10000 });
     assert.ok(withFixed < withoutFixed);
+  });
+});
+
+function plan(overrides = {}) {
+  return {
+    currentAge: 40,
+    retirementAge: 65,
+    horizonYears: 25,
+    startAssets: 0,
+    monthlySave: 0,
+    preAnnualGross: 0,
+    postRealAnnualGross: 0,
+    inflationAnnual: 0,
+    annualSpendToday: 0,
+    delayYears: 0,
+    feeAnnualPre: 0,
+    feeAnnualPost: 0,
+    fixedFeeAnnual: 0,
+    ...overrides,
+  };
+}
+
+function reconcile(rows) {
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1];
+    const row = rows[i];
+    const closing =
+      prev.nominal +
+      row.contributions +
+      row.growth -
+      row.fees -
+      row.withdrawals -
+      row.assetRemoved +
+      row.unfunded;
+    assert.ok(Math.abs(closing - row.nominal) < 1e-6, `age ${row.age} does not reconcile`);
+    assert.ok(Math.abs(row.personal + row.super - row.nominal) < 1e-6, `age ${row.age} split`);
+  }
+}
+
+describe("additional contributions and lump sums", () => {
+  it("matches the existing projection when there are no additional entries", () => {
+    const base = plan({
+      startAssets: 200000,
+      monthlySave: 1500,
+      preAnnualGross: 0.08,
+      postRealAnnualGross: 0.025,
+      inflationAnnual: 0.02,
+      annualSpendToday: 60000,
+      delayYears: 3,
+      feeAnnualPre: 0.002,
+      feeAnnualPost: 0.002,
+      fixedFeeAnnual: 0,
+      retirementAge: 60,
+      horizonYears: 50,
+    });
+    const plain = simulate(base);
+    const empty = simulate({ ...base, additionalSchedules: [], lumpSums: [] });
+    const disabled = simulate({
+      ...base,
+      additionalSchedules: [{ account: "personal", amount: 1000, startAge: 40, stopAge: 50, enabled: false }],
+      lumpSums: [{ amount: 10000, age: 50, monthOffset: 0, account: "personal", enabled: false }],
+    });
+    assert.equal(empty.rows.length, plain.rows.length);
+    for (let i = 0; i < plain.rows.length; i++) {
+      assert.equal(empty.rows[i].nominal, plain.rows[i].nominal);
+      assert.equal(empty.rows[i].contributed, plain.rows[i].contributed);
+      assert.equal(empty.rows[i].real, plain.rows[i].real);
+      assert.equal(disabled.rows[i].nominal, plain.rows[i].nominal);
+    }
+    assert.equal(empty.endNom, plain.endNom);
+    assert.equal(empty.totalFees, plain.totalFees);
+    assert.equal(empty.depletedAgeExact, plain.depletedAgeExact);
+  });
+
+  it("adds exactly $22,000 at zero returns and fees for 12 monthly deposits plus a lump sum", () => {
+    const lump = { amount: 10000, age: 40, monthOffset: 0, account: "personal", enabled: true, transfer: false };
+    const schedule = { account: "personal", amount: 1000, startAge: 40, stopAge: 41, enabled: true };
+    const before = simulate(plan({ startAssets: 5000, monthlySave: 200 }));
+    const after = simulate(plan({ startAssets: 5000, monthlySave: 200, additionalSchedules: [schedule], lumpSums: [lump] }));
+    const at41 = rowAtAge(after.rows, 41).nominal - rowAtAge(before.rows, 41).nominal;
+    assert.equal(at41, 22000);
+    assert.equal(rowAtAge(after.rows, 40).nominal - rowAtAge(before.rows, 40).nominal, 10000);
+    reconcile(after.rows);
+  });
+
+  it("earns nothing before the investment date and keeps compounding after deposits stop", () => {
+    const schedule = { account: "personal", amount: 1000, startAge: 50, stopAge: 55, enabled: true };
+    const lump = { amount: 10000, age: 58, monthOffset: 6, account: "personal", enabled: true };
+    const before = simulate(plan({ startAssets: 1000, preAnnualGross: 0.08, postRealAnnualGross: 0.08 }));
+    const after = simulate(plan({
+      startAssets: 1000,
+      preAnnualGross: 0.08,
+      postRealAnnualGross: 0.08,
+      additionalSchedules: [schedule],
+      lumpSums: [lump],
+    }));
+    assert.equal(rowAtAge(after.rows, 50).nominal, rowAtAge(before.rows, 50).nominal);
+    assert.ok(rowAtAge(after.rows, 51).nominal > rowAtAge(before.rows, 51).nominal);
+    const extraAt55 = rowAtAge(after.rows, 55).nominal - rowAtAge(before.rows, 55).nominal;
+    const extraAt58 = rowAtAge(after.rows, 58).nominal - rowAtAge(before.rows, 58).nominal;
+    assert.ok(extraAt58 > extraAt55);
+    const flat = simulate(plan({ additionalSchedules: [schedule], lumpSums: [{ ...lump, age: 70, monthOffset: 0 }] }));
+    const gained = rowAtAge(flat.rows, 55).nominal - rowAtAge(simulate(plan()).rows, 55).nominal;
+    assert.equal(gained, 60000);
+    assert.equal(rowAtAge(flat.rows, 65).nominal - rowAtAge(simulate(plan()).rows, 65).nominal, 60000);
+    const mid = simulate(plan({ lumpSums: [lump], preAnnualGross: 0.08, postRealAnnualGross: 0.08, startAssets: 0 }));
+    assert.equal(rowAtAge(mid.rows, 58).nominal, 0);
+    assert.ok(rowAtAge(mid.rows, 59).nominal > 10000);
+  });
+
+  it("adds overlapping schedules and simultaneous lump sums", () => {
+    const schedules = [
+      { account: "personal", amount: 1000, startAge: 50, stopAge: 55, enabled: true },
+      { account: "super", amount: 500, startAge: 52, stopAge: 54, enabled: true },
+    ];
+    const lumps = [
+      { id: "a", amount: 5000, age: 60, monthOffset: 0, account: "personal", enabled: true },
+      { id: "b", amount: 7000, age: 60, monthOffset: 0, account: "super", enabled: true },
+    ];
+    const after = simulate(plan({ additionalSchedules: schedules, lumpSums: lumps }));
+    assert.equal(rowAtAge(after.rows, 52).super, 0);
+    assert.equal(rowAtAge(after.rows, 52).personal, 1000 * 24);
+    assert.equal(rowAtAge(after.rows, 54).super, 500 * 24);
+    assert.equal(rowAtAge(after.rows, 55).personal, 1000 * 60);
+    assert.equal(rowAtAge(after.rows, 60).personal, 1000 * 60 + 5000);
+    assert.equal(rowAtAge(after.rows, 60).super, 500 * 24 + 7000);
+    assert.equal(formatContributionSummary(1000, 50, 55, false), "$1,000/month from age 50 until 55.");
+    reconcile(after.rows);
+  });
+
+  it("treats a related sale as a transfer and does not keep the sold asset", () => {
+    const lump = {
+      id: "sale",
+      amount: 80000,
+      age: 50,
+      monthOffset: 0,
+      account: "personal",
+      enabled: true,
+      transfer: true,
+      includedAmount: 100000,
+      description: "Property sale",
+    };
+    const before = simulate(plan({ startAssets: 100000, horizonYears: 15, retirementAge: 55 }));
+    const after = simulate(plan({ startAssets: 100000, horizonYears: 15, retirementAge: 55, lumpSums: [lump] }));
+    assert.equal(rowAtAge(before.rows, 50).nominal, 100000);
+    assert.equal(rowAtAge(after.rows, 49).nominal, 100000);
+    assert.equal(rowAtAge(after.rows, 50).nominal, 80000);
+    assert.equal(rowAtAge(after.rows, 55).nominal, 80000);
+    reconcile(after.rows);
+  });
+
+  it("does not draw super to fund spending when no access age exists", () => {
+    const withSuper = simulate(plan({
+      currentAge: 60,
+      retirementAge: 60,
+      horizonYears: 2,
+      startAssets: 0,
+      annualSpendToday: 12000,
+      lumpSums: [{ amount: 50000, age: 60, monthOffset: 0, account: "super", enabled: true }],
+    }));
+    assert.equal(rowAtAge(withSuper.rows, 60).super, 50000);
+    assert.equal(rowAtAge(withSuper.rows, 61).super, 50000);
+    assert.equal(rowAtAge(withSuper.rows, 61).personal, 0);
+    assert.equal(withSuper.depletedAge, 60);
+  });
+
+  it("loads saved plans with no additional contributions and validates fields", () => {
+    assert.deepEqual(normalizeContributionState({}), { contributionSchedules: [], lumpSums: [] });
+    assert.deepEqual(normalizeContributionState({ contributionSchedules: [{ amount: 1 }], lumpSums: null }), {
+      contributionSchedules: [{ amount: 1 }],
+      lumpSums: [],
+    });
+    const ctx = { currentAge: 40, endAge: 65, startAssets: 100000 };
+    assert.equal(hasFieldErrors(validateSchedule({ amount: "", startAge: 40, stopAge: 50 }, ctx)), true);
+    assert.equal(validateSchedule({ amount: "1000", startAge: 30, stopAge: 50 }, ctx).startAge.includes("before"), true);
+    assert.equal(validateSchedule({ amount: "1000", startAge: 50, stopAge: 50 }, ctx).stopAge.includes("after"), true);
+    assert.equal(hasFieldErrors(validateSchedule({ amount: "$1,000", startAge: 50, stopAge: 55 }, ctx)), false);
+    assert.equal(validateLump({ amount: "10", age: 70, monthOffset: 0 }, ctx).age.includes("beyond"), true);
+    assert.equal(validateLump({ amount: "10", age: 50, monthOffset: 12 }, ctx).monthOffset.includes("0 to 11"), true);
+    assert.ok(validateLump({ amount: "10", age: 50, monthOffset: 0, transfer: true, includedAmount: "" }, ctx).includedAmount);
+    assert.equal(resolveContributions(plan()).schedules.length, 0);
+  });
+
+  it("finds retirement capital required to fund spending", () => {
+    const target = requiredCapitalAtRetirement({
+      retirementAge: 60,
+      lifeExpectancy: 90,
+      annualSpendToday: 12000,
+      postRealAnnualGross: 0,
+      inflationAnnual: 0,
+      feeAnnualPre: 0,
+      feeAnnualPost: 0,
+      fixedFeeAnnual: 0,
+    });
+    assert.equal(target, 12000 * 30);
   });
 });
