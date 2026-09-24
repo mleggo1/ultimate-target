@@ -684,6 +684,10 @@ export default function App() {
               diyFeePct={diyFeePct}
               diyFixed={diyFixed}
               annualSpendToday={annualSpendToday}
+              onAnnualSpend={(v) => setAnnualSpendToday(clamp(v, 0, 1_300_000))}
+              onRetirementAge={(v) => setRetirementAge(clamp(v, currentAge + 1, 100))}
+              onLifeExpectancy={(v) => setLifeExpectancy(clamp(v, retirementAge + 1, 110))}
+              onMonthlySave={(v) => setMonthlySave(clamp(v, 0, 25_000))}
               schedules={contributionSchedules}
               setSchedules={setContributionSchedules}
               lumpSums={lumpSums}

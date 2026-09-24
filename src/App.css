@@ -762,6 +762,34 @@
   box-sizing: border-box;
 }
 
+.ut-money-hint {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ut-plan-slider {
+  display: grid;
+  grid-template-columns: 1fr 150px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ut-runout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.ut-plan-summary {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
 .ut-field-error {
   margin: 0;
   color: #dc2626;
@@ -851,6 +879,10 @@
 
   .ut-table-wrap {
     overflow-x: auto;
+  }
+
+  .ut-plan-slider {
+    grid-template-columns: 1fr;
   }
 }
 

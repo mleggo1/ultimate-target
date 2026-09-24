@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   ComposedChart,
@@ -17,6 +17,7 @@ import {
   rowAtAge,
   simulate,
   validateLump,
+  parseNumericInput,
   validateSchedule,
 } from "./simulate";
 
@@ -49,20 +50,92 @@ function Field({ id, label, error, children }) {
   );
 }
 
-function MoneyInput({ id, value, onChange, error, theme, label }) {
+function moneyNumber(raw) {
+  const n = parseNumericInput(raw, { money: true });
+  return Number.isFinite(n) ? n : 0;
+}
+
+function MoneyInput({ id, value, onChange, error, theme, label, hint }) {
+  const [focus, setFocus] = useState(false);
+  const [text, setText] = useState(value == null ? "" : String(value));
+  useEffect(() => {
+    if (!focus) setText(value == null ? "" : String(value));
+  }, [value, focus]);
+  const amount = moneyNumber(text);
+  const shown = focus || text === "" ? text : `$${amount.toLocaleString("en-AU", { maximumFractionDigits: Number.isInteger(amount) ? 0 : 2 })}`;
   return (
     <Field id={id} label={label} error={error}>
       <input
         id={id}
-        className="ut-mobile-input"
+        className="ut-mobile-input ut-money-input"
         inputMode="decimal"
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ background: theme.inputBg, color: theme.text, borderColor: error ? theme.danger : theme.border }}
+        value={shown}
+        onFocus={() => {
+          setFocus(true);
+          setText(value == null || value === "" ? "" : String(value));
+        }}
+        onBlur={() => setFocus(false)}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(e.target.value);
+        }}
+        style={{ background: theme.inputBg, color: theme.text, borderColor: error ? theme.danger : theme.border, fontWeight: 800, fontSize: 18 }}
       />
+      {hint ? <p className="ut-money-hint">{hint}</p> : null}
     </Field>
+  );
+}
+
+function PlanSlider({ id, label, value, onChange, min, max, step, money, theme }) {
+  const [text, setText] = useState(String(value));
+  const [focus, setFocus] = useState(false);
+  useEffect(() => {
+    if (!focus) setText(String(value));
+  }, [value, focus]);
+  const shown = money && !focus ? `$${Number(value || 0).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : text;
+  const fill = ((Number(value) - min) / Math.max(1, max - min)) * 100;
+  return (
+    <div className="ut-field">
+      <label htmlFor={id}>{label}</label>
+      <div className="ut-plan-slider">
+        <input
+          id={id}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="ut-range"
+          style={{ "--range-fill": `${Math.min(100, Math.max(0, fill))}%`, "--range-color": theme.accent, "--range-track": theme.border, "--range-thumb": theme.inputBg, "--range-thumb-border": theme.accent }}
+        />
+        <input
+          className="ut-mobile-input"
+          inputMode="decimal"
+          aria-label={label}
+          value={shown}
+          onFocus={() => {
+            setFocus(true);
+            setText(String(value));
+          }}
+          onBlur={() => {
+            setFocus(false);
+            const n = moneyNumber(text);
+            onChange(Math.min(max, Math.max(min, n)));
+          }}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (!money) {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, n)));
+            }
+          }}
+          style={{ background: theme.inputBg, color: theme.text, borderColor: theme.border, fontWeight: 800 }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -153,6 +226,10 @@ export default function Contributions({
   diyFeePct,
   diyFixed,
   annualSpendToday,
+  onAnnualSpend,
+  onRetirementAge,
+  onLifeExpectancy,
+  onMonthlySave,
   schedules,
   setSchedules,
   lumpSums,
@@ -318,7 +395,7 @@ export default function Contributions({
                         style={{ background: theme.inputBg, color: theme.text, borderColor: theme.border }}
                       />
                     </Field>
-                    <MoneyInput id={`${s.id}-amount`} label="Additional monthly amount" value={s.amount} error={errors.amount} theme={theme} onChange={(amount) => updateSchedule(s.id, { amount })} />
+                    <MoneyInput id={`${s.id}-amount`} label="Additional monthly amount" value={s.amount} error={errors.amount} theme={theme} hint={moneyNumber(s.amount) > 0 ? `Adding ${fmtAUD(moneyNumber(s.amount))} each month` : "Type the extra amount you will add each month"} onChange={(amount) => updateSchedule(s.id, { amount })} />
                     <NumberInput id={`${s.id}-start`} label="Start age" value={s.startAge} min={currentAge} max={horizonEnd} error={errors.startAge} theme={theme} onChange={(startAge) => updateSchedule(s.id, { startAge })} />
                     <NumberInput id={`${s.id}-stop`} label="Stop age" value={s.untilEnd ? horizonEnd : s.stopAge} min={currentAge} max={horizonEnd} error={errors.stopAge} theme={theme} onChange={(stopAge) => updateSchedule(s.id, { stopAge, untilEnd: false })} />
                     <label className="ut-check" htmlFor={`${s.id}-end`}>
@@ -374,8 +451,8 @@ export default function Contributions({
               Split your savings between personal investments and super. The combined total stays in sync with the rest of the plan. Super is kept separate and is not drawn to fund spending.
             </p>
             <div className="ut-entry-fields">
-              <MoneyInput id="personal-start" label="Personal investments" value={personalOpening} error={null} theme={theme} onChange={(raw) => onPersonalStart(Math.max(0, Number(String(raw).replace(/[^0-9.]/g, "")) || 0))} />
-              <MoneyInput id="super-start" label="Superannuation" value={superOpening} error={null} theme={theme} onChange={(raw) => onSuperStart(Math.max(0, Number(String(raw).replace(/[^0-9.]/g, "")) || 0))} />
+              <MoneyInput id="personal-start" label="Personal investments" value={personalOpening} error={null} theme={theme} hint={personalOpening > 0 ? `${fmtAUD(personalOpening)} already invested outside super` : "Nothing in personal investments yet"} onChange={(raw) => onPersonalStart(moneyNumber(raw))} />
+              <MoneyInput id="super-start" label="Superannuation" value={superOpening} error={null} theme={theme} hint={superOpening > 0 ? `${fmtAUD(superOpening)} already in super` : "Nothing in super yet"} onChange={(raw) => onSuperStart(moneyNumber(raw))} />
             </div>
             <p style={{ margin: "10px 0 0", fontWeight: 700 }}>Combined {fmtAUD(personalOpening + superOpening)}</p>
           </section>
@@ -417,7 +494,7 @@ export default function Contributions({
                           style={{ background: theme.inputBg, color: theme.text, borderColor: theme.border }}
                         />
                       </Field>
-                      <MoneyInput id={`${lump.id}-amount`} label="Net amount available to invest" value={lump.amount} error={errors.amount} theme={theme} onChange={(amount) => updateLump(lump.id, { amount })} />
+                      <MoneyInput id={`${lump.id}-amount`} label="Net amount available to invest" value={lump.amount} error={errors.amount} theme={theme} hint={moneyNumber(lump.amount) > 0 ? `${fmtAUD(moneyNumber(lump.amount))} comes in once` : "Type the amount that will be invested"} onChange={(amount) => updateLump(lump.id, { amount })} />
                       <p style={{ margin: 0, color: theme.muted, fontSize: 12 }}>Enter the amount you expect to invest after debts, tax and selling costs.</p>
                       <NumberInput id={`${lump.id}-age`} label="Investment age" value={lump.age} min={currentAge} max={horizonEnd} error={errors.age} theme={theme} onChange={(age) => updateLump(lump.id, { age })} />
                       <NumberInput id={`${lump.id}-month`} label="Month offset (optional)" value={lump.monthOffset} min={0} max={11} error={errors.monthOffset} theme={theme} onChange={(monthOffset) => updateLump(lump.id, { monthOffset })} />
@@ -469,6 +546,24 @@ export default function Contributions({
         </div>
 
         <div className="ut-contrib-results">
+          <section style={card} aria-labelledby="flex-heading">
+            <h3 id="flex-heading" style={{ margin: "0 0 6px" }}>Try the plan</h3>
+            <p style={{ margin: "0 0 12px", color: theme.muted, fontSize: 13 }}>
+              Move annual spend to see when personal investments run out. Super stays invested and is not used for this spending.
+            </p>
+            <PlanSlider id="contrib-spend" label="Annual spend in today's dollars" money theme={theme} min={0} max={1300000} step={1000} value={Math.max(0, annualSpendToday)} onChange={onAnnualSpend} />
+            <PlanSlider id="contrib-monthly" label="Existing monthly savings" money theme={theme} min={0} max={25000} step={100} value={Math.max(0, monthlySave)} onChange={onMonthlySave} />
+            <PlanSlider id="contrib-retire" label="Retirement age" theme={theme} min={currentAge + 1} max={100} step={1} value={retirementAge} onChange={onRetirementAge} />
+            <PlanSlider id="contrib-life" label="Life expectancy" theme={theme} min={retirementAge + 1} max={110} step={1} value={lifeExpectancy} onChange={onLifeExpectancy} />
+            <div className="ut-runout" style={{ borderColor: withExtra.depletedAge ? theme.danger : theme.success, marginTop: 12 }}>
+              <strong>{withExtra.depletedAge ? `Personal investments run out around age ${withExtra.depletedAge}` : `Personal investments last beyond age ${lifeExpectancy}`}</strong>
+              <span>
+                {baseline.depletedAge
+                  ? `Without the extra contributions, they run out around age ${baseline.depletedAge}.`
+                  : `Without the extra contributions, they last beyond age ${lifeExpectancy}.`}
+              </span>
+            </div>
+          </section>
           <p style={{ margin: "0 0 8px", color: theme.muted }}>
             Compared at age {compareAge}
             {compareAge === retirementAge ? " — retirement age" : ""}.
@@ -576,6 +671,24 @@ export default function Contributions({
                 </table>
               </div>
             ) : null}
+      </section>
+
+      <section style={{ ...card, marginTop: 12 }} aria-labelledby="contrib-summary-title">
+        <h2 id="contrib-summary-title" style={{ marginTop: 0, fontSize: 18 }}>Summary of this plan</h2>
+        <ul className="ut-plan-summary">
+          <li>You start with {fmtAUD(personalOpening)} in personal investments and {fmtAUD(superOpening)} in super. Combined, that is {fmtAUD(personalOpening + superOpening)}.</li>
+          <li>Existing savings of {fmtAUD(monthlySave)} a month continue until age {retirementAge}. Anything added below is extra, so it is not counted twice.</li>
+          {schedules.filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0).map((s) => (
+            <li key={s.id}>{s.account === "super" ? "Super" : "Personal"}: {s.name?.trim() || "Additional contribution"} — {formatContributionSummary(moneyNumber(s.amount), s.startAge, s.untilEnd ? horizonEnd : s.stopAge, s.untilEnd)}</li>
+          ))}
+          {schedules.filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0).length === 0 ? <li>No additional monthly contributions.</li> : null}
+          {lumpSums.filter((l) => l.enabled !== false && moneyNumber(l.amount) > 0).map((l) => (
+            <li key={l.id}>{l.description?.trim() || "Lump sum"}: {fmtAUD(moneyNumber(l.amount))} into {l.account === "super" ? "super" : "personal investments"} at age {l.age}{Number(l.monthOffset) > 0 ? ` plus ${l.monthOffset} months` : ""}{l.transfer ? ", replacing an asset already in the plan" : ""}.</li>
+          ))}
+          {lumpSums.filter((l) => l.enabled !== false && moneyNumber(l.amount) > 0).length === 0 ? <li>No future lump sums.</li> : null}
+          <li>Annual spending is {fmtAUD(annualSpendToday)} in today's dollars. {withExtra.depletedAge ? `At that spend, personal investments run out around age ${withExtra.depletedAge}.` : `At that spend, personal investments last beyond age ${lifeExpectancy}.`}</li>
+          <li>{increase >= 0 ? `The extra money increases projected wealth at age ${compareAge} by ${fmtAUD(increase)}.` : `The extra money reduces projected wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`} At that age the plan holds {fmtAUD(extraRow?.personal || 0)} personally and {fmtAUD(extraRow?.super || 0)} in super.</li>
+        </ul>
       </section>
     </div>
   );
