@@ -551,6 +551,23 @@ describe("additional contributions and lump sums", () => {
     reconcile(after.rows);
   });
 
+  it("keeps a split starting balance in personal and super", () => {
+    const split = simulate(plan({
+      startAssets: 300000,
+      startPersonal: 100000,
+      startSuper: 200000,
+      monthlySave: 0,
+      annualSpendToday: 12000,
+      retirementAge: 40,
+      horizonYears: 2,
+    }));
+    assert.equal(rowAtAge(split.rows, 40).personal, 100000);
+    assert.equal(rowAtAge(split.rows, 40).super, 200000);
+    assert.equal(rowAtAge(split.rows, 40).nominal, 300000);
+    assert.equal(rowAtAge(split.rows, 41).super, 200000);
+    assert.ok(rowAtAge(split.rows, 41).personal < 100000);
+  });
+
   it("does not draw super to fund spending when no access age exists", () => {
     const withSuper = simulate(plan({
       currentAge: 60,

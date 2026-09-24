@@ -113,6 +113,8 @@ export default function App() {
   const [retirementAge, setRetirementAge] = useState(60);
   const [lifeExpectancy, setLifeExpectancy] = useState(90);
   const [initialAmount, setInitialAmount] = useState(200000);
+  const [personalStart, setPersonalStart] = useState(200000);
+  const [superStart, setSuperStart] = useState(0);
   const [monthlySave, setMonthlySave] = useState(1500);
   const [annualSpendToday, setAnnualSpendToday] = useState(60000);
   const [delayYears, setDelayYears] = useState(3);
@@ -154,6 +156,8 @@ export default function App() {
     retirementAge,
     lifeExpectancy,
     initialAmount,
+    personalStart,
+    superStart,
     monthlySave,
     annualSpendToday,
     delayYears,
@@ -179,6 +183,8 @@ export default function App() {
     setRetirementAge(s.retirementAge ?? 60);
     setLifeExpectancy(s.lifeExpectancy ?? 90);
     setInitialAmount(s.initialAmount ?? 200000);
+    setPersonalStart(s.personalStart ?? s.initialAmount ?? 200000);
+    setSuperStart(s.superStart ?? 0);
     setMonthlySave(s.monthlySave ?? 1500);
     setAnnualSpendToday(s.annualSpendToday ?? 60000);
     setDelayYears(s.delayYears ?? 3);
@@ -207,7 +213,7 @@ export default function App() {
       localStorage.setItem(LS_KEY, JSON.stringify(snapshot()));
     } catch {}
     // eslint-disable-next-line
-  }, [client, currentAge, retirementAge, lifeExpectancy, initialAmount, monthlySave, annualSpendToday, delayYears, returnPa, postRetRealPa, inflationPa, diyFeePct, diyFixed, advisorFeePct, advisorFixed, tab, compareAdv, dark, activePreset, contributionSchedules, lumpSums]);
+  }, [client, currentAge, retirementAge, lifeExpectancy, initialAmount, personalStart, superStart, monthlySave, annualSpendToday, delayYears, returnPa, postRetRealPa, inflationPa, diyFeePct, diyFixed, advisorFeePct, advisorFixed, tab, compareAdv, dark, activePreset, contributionSchedules, lumpSums]);
 
   const themeCard = {
     background: theme.cardBg,
@@ -661,6 +667,16 @@ export default function App() {
               retirementAge={retirementAge}
               lifeExpectancy={lifeExpectancy}
               initialAmount={initialAmount}
+              personalStart={personalStart}
+              superStart={superStart}
+              onPersonalStart={(n) => {
+                setPersonalStart(n);
+                setInitialAmount(n + superStart);
+              }}
+              onSuperStart={(n) => {
+                setSuperStart(n);
+                setInitialAmount(personalStart + n);
+              }}
               monthlySave={monthlySave}
               returnPa={returnPa}
               postRetRealPa={postRetRealPa}
@@ -725,9 +741,21 @@ export default function App() {
               />
               <RangePair
                 id="initial"
-                label="Initial Amount"
+                label="Combined starting balance"
                 value={initialAmount}
-                onChange={(v) => setInitialAmount(clamp(v, 0, 5_000_000))}
+                onChange={(v) => {
+                  const next = clamp(v, 0, 5_000_000);
+                  const prev = Math.max(0, personalStart) + Math.max(0, superStart);
+                  if (prev <= 0) {
+                    setPersonalStart(next);
+                    setSuperStart(0);
+                  } else {
+                    const personal = Math.round((personalStart / prev) * next);
+                    setPersonalStart(personal);
+                    setSuperStart(Math.max(0, next - personal));
+                  }
+                  setInitialAmount(next);
+                }}
                 theme={theme}
                 min={0}
                 max={5_000_000}

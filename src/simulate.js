@@ -74,7 +74,7 @@ export function resolveContributions(input = {}) {
   const horizonYears = Math.max(0, num(input.horizonYears));
   const months = Math.round(horizonYears * 12);
   const endAge = currentAge + horizonYears;
-  const startAssets = Math.max(0, num(input.startAssets));
+  const startAssets = input.startPersonal == null ? Math.max(0, num(input.startAssets)) : Math.max(0, num(input.startPersonal));
 
   const schedules = [];
   for (const s of input.additionalSchedules || []) {
@@ -139,6 +139,8 @@ export function simulate(input = {}) {
   const retirementAge = num(input.retirementAge, currentAge);
   const horizonYears = Math.max(0, num(input.horizonYears));
   const startAssets = Math.max(0, num(input.startAssets));
+  const personalStart = input.startPersonal == null ? startAssets : Math.max(0, num(input.startPersonal));
+  const superStart = input.startSuper == null ? 0 : Math.max(0, num(input.startSuper));
   const monthlySave = num(input.monthlySave);
   const preAnnualGross = num(input.preAnnualGross);
   const postAnnualGross = num(input.postRealAnnualGross); // treated as nominal
@@ -161,10 +163,10 @@ export function simulate(input = {}) {
   const dly = Math.max(0, Math.round(delayYears * 12));
 
   const rows = [];
-  let personal = startAssets;
-  let superBal = 0;
+  let personal = personalStart;
+  let superBal = superStart;
   let dep = null;
-  let totalContributed = startAssets;
+  let totalContributed = personalStart + superStart;
   let totalFees = 0;
   let cumulativeDeposits = 0;
   const slices = resolved.lumps

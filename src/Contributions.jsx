@@ -142,6 +142,10 @@ export default function Contributions({
   retirementAge,
   lifeExpectancy,
   initialAmount,
+  personalStart,
+  superStart,
+  onPersonalStart,
+  onSuperStart,
   monthlySave,
   returnPa,
   postRetRealPa,
@@ -159,14 +163,18 @@ export default function Contributions({
 }) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const horizonEnd = lifeExpectancy;
-  const ctx = { currentAge, endAge: horizonEnd, startAssets: Math.max(0, initialAmount) };
+  const personalOpening = Math.max(0, Number(personalStart) || 0);
+  const superOpening = Math.max(0, Number(superStart) || 0);
+  const ctx = { currentAge, endAge: horizonEnd, startAssets: personalOpening };
 
   const planInput = useMemo(
     () => ({
       currentAge,
       retirementAge,
       horizonYears: Math.max(0, lifeExpectancy - currentAge),
-      startAssets: Math.max(0, initialAmount),
+      startAssets: personalOpening + superOpening,
+      startPersonal: personalOpening,
+      startSuper: superOpening,
       monthlySave: Math.max(0, monthlySave),
       preAnnualGross: Math.max(0, returnPa) / 100,
       postRealAnnualGross: postRetRealPa / 100,
@@ -177,7 +185,7 @@ export default function Contributions({
       feeAnnualPost: Math.max(0, diyFeePct) / 100,
       fixedFeeAnnual: Math.max(0, diyFixed),
     }),
-    [currentAge, retirementAge, lifeExpectancy, initialAmount, monthlySave, returnPa, postRetRealPa, inflationPa, annualSpendToday, diyFeePct, diyFixed]
+    [currentAge, retirementAge, lifeExpectancy, personalOpening, superOpening, monthlySave, returnPa, postRetRealPa, inflationPa, annualSpendToday, diyFeePct, diyFixed]
   );
 
   const usableSchedules = schedules.map((s) => ({ ...s, stopAge: s.untilEnd ? horizonEnd : s.stopAge }));
@@ -343,8 +351,9 @@ export default function Contributions({
           <div><dt>Current age</dt><dd>{currentAge}</dd></div>
           <div><dt>Retirement age</dt><dd>{retirementAge}</dd></div>
           <div><dt>Projection</dt><dd>To age {lifeExpectancy}</dd></div>
-          <div><dt>Personal starting balance</dt><dd>{fmtAUD(initialAmount)}</dd></div>
-          <div><dt>Super starting balance</dt><dd>{fmtAUD(0)}</dd></div>
+          <div><dt>Personal starting balance</dt><dd>{fmtAUD(personalOpening)}</dd></div>
+          <div><dt>Super starting balance</dt><dd>{fmtAUD(superOpening)}</dd></div>
+          <div><dt>Combined starting balance</dt><dd>{fmtAUD(personalOpening + superOpening)}</dd></div>
           <div><dt>Existing contributions</dt><dd>{fmtAUD(monthlySave)}/month until {retirementAge}</dd></div>
           <div><dt>Return before retirement</dt><dd>{returnPa}% p.a.</dd></div>
           <div><dt>Retirement return</dt><dd>{postRetRealPa}% p.a.</dd></div>
@@ -359,6 +368,17 @@ export default function Contributions({
 
       <div className="ut-contrib-layout">
         <div className="ut-contrib-inputs">
+          <section style={card} aria-labelledby="balances-heading">
+            <h3 id="balances-heading" style={{ margin: "0 0 6px" }}>Starting balances</h3>
+            <p style={{ margin: "0 0 12px", color: theme.muted, fontSize: 13 }}>
+              Split your savings between personal investments and super. The combined total stays in sync with the rest of the plan. Super is kept separate and is not drawn to fund spending.
+            </p>
+            <div className="ut-entry-fields">
+              <MoneyInput id="personal-start" label="Personal investments" value={personalOpening} error={null} theme={theme} onChange={(raw) => onPersonalStart(Math.max(0, Number(String(raw).replace(/[^0-9.]/g, "")) || 0))} />
+              <MoneyInput id="super-start" label="Superannuation" value={superOpening} error={null} theme={theme} onChange={(raw) => onSuperStart(Math.max(0, Number(String(raw).replace(/[^0-9.]/g, "")) || 0))} />
+            </div>
+            <p style={{ margin: "10px 0 0", fontWeight: 700 }}>Combined {fmtAUD(personalOpening + superOpening)}</p>
+          </section>
           {renderSchedules("personal", "Personal investments")}
           {renderSchedules("super", "Superannuation")}
           <section style={card} aria-labelledby="lump-heading">
@@ -465,26 +485,31 @@ export default function Contributions({
               hint={targetCapital == null ? "Spending cannot be funded on these assumptions." : `Spendable personal investments versus ${fmtAUD(targetCapital)} needed to fund spend to age ${lifeExpectancy}.`}
             />
           </div>
+          <p style={{ margin: "8px 0 0", color: theme.muted, fontSize: 13 }}>
+            At age {compareAge}: personal {fmtAUD(extraRow?.personal || 0)}, super {fmtAUD(extraRow?.super || 0)}. Existing plan is personal {fmtAUD(baseRow?.personal || 0)} and super {fmtAUD(baseRow?.super || 0)}.
+          </p>
+        </div>
+      </div>
 
-          <section style={{ ...card, marginTop: 12 }} aria-labelledby="contrib-chart-title">
+      <section className="ut-contrib-chart-card" style={{ ...card, marginTop: 12 }} aria-labelledby="contrib-chart-title">
             <h2 id="contrib-chart-title" style={{ margin: "0 0 8px", fontSize: 18 }}>Projected wealth</h2>
             <p style={{ margin: "0 0 8px" }} aria-live="polite">
               {increase >= 0
                 ? `Your additional investments increase projected wealth at age ${compareAge} by ${fmtAUD(increase)}.`
                 : `Your additional investments reduce projected wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`}
             </p>
-            <div className="ut-mobile-chart-container" style={{ width: "100%", height: 420 }}>
+            <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 28, right: 8, left: 8, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 36, right: 16, left: 8, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
-                  <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 11 }} />
-                  <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 11 }} width={56} />
+                  <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
+                  <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
                   <Tooltip content={<ContribTooltip theme={theme} />} />
-                  <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text, fontSize: 11 }} />
-                  <ReLine type="monotone" dataKey="baseline" name="Existing plan" stroke={theme.muted} strokeWidth={2} dot={false} />
-                  <ReLine type="monotone" dataKey="withContributions" name="With additional contributions" stroke={theme.accent} strokeWidth={3} dot={false} />
-                  <ReferenceLine x={retirementAge} stroke={theme.gold} strokeDasharray="6 3" label={{ value: `Retirement ${retirementAge}`, fill: theme.gold, fontSize: 11, position: "insideTopLeft" }} />
-                  <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeDasharray="3 3" label={{ value: `Target horizon ${lifeExpectancy}`, fill: theme.axis, fontSize: 11, position: "insideTopRight" }} />
+                  <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text, fontSize: 15, fontWeight: 700 }} iconSize={18} />
+                  <ReLine type="monotone" dataKey="baseline" name="Existing plan" stroke={theme.muted} strokeWidth={3} dot={false} />
+                  <ReLine type="monotone" dataKey="withContributions" name="With additional contributions" stroke="#22d3ee" strokeWidth={5} dot={false} />
+                  <ReferenceLine x={retirementAge} stroke={theme.gold} strokeWidth={3} strokeDasharray="6 3" label={{ value: `Retirement ${retirementAge}`, fill: theme.gold, fontSize: 14, fontWeight: 800, position: "insideTopLeft" }} />
+                  <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeWidth={2} strokeDasharray="3 3" label={{ value: `Target horizon ${lifeExpectancy}`, fill: theme.axis, fontSize: 13, fontWeight: 700, position: "insideTopRight" }} />
                   {targetCapital > 0 ? (
                     <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" label={{ value: "Target", fill: theme.primary, fontSize: 11, position: "insideTopRight" }} />
                   ) : null}
@@ -500,9 +525,9 @@ export default function Contributions({
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
-          </section>
+      </section>
 
-          <section style={{ ...card, marginTop: 12 }}>
+      <section style={{ ...card, marginTop: 12 }}>
             <button
               type="button"
               className="ut-add-btn"
@@ -551,9 +576,7 @@ export default function Contributions({
                 </table>
               </div>
             ) : null}
-          </section>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
