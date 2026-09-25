@@ -208,18 +208,96 @@ function EntryBar({ title, summary, enabled, onToggle, expanded, onEdit, onDelet
   );
 }
 
-function lumpLabelStacks(events, startAge, endAge) {
-  const gap = Math.max(4, (endAge - startAge) * 0.09);
-  const order = events.map((ev, index) => ({ ...ev, index })).sort((a, b) => a.age - b.age || (b.amount || 0) - (a.amount || 0));
-  const placed = [];
-  const stacks = events.map(() => 0);
-  for (const ev of order) {
-    let stack = 0;
-    while (placed.some((item) => item.stack === stack && Math.abs(item.age - ev.age) < gap)) stack += 1;
-    placed.push({ age: ev.age, stack });
-    stacks[ev.index] = stack;
+function conciseMoney(n) {
+  const v = Math.abs(Number(n) || 0);
+  if (v >= 1_000_000) {
+    const m = v / 1_000_000;
+    return `$${Number.isInteger(m) ? m.toFixed(0) : m.toFixed(1)}m`;
   }
-  return stacks;
+  if (v >= 10_000) return `$${Math.round(v / 1000)}k`;
+  return `$${Math.round(v).toLocaleString("en-AU")}`;
+}
+
+function markerCaption(ev) {
+  if (ev.kind === "schedule") {
+    const who = ev.account === "super" ? "Super" : "Personal";
+    return `${who} +${conciseMoney(ev.amount)}/mo`;
+  }
+  const name = String(ev.label || "Lump sum").trim();
+  const short = name.length > 16 ? `${name.slice(0, 15)}…` : name;
+  return `${short} ${conciseMoney(ev.amount)}`;
+}
+
+function labelBox(text) {
+  return { w: Math.min(210, Math.max(92, text.length * 7.1 + 18)), h: 26 };
+}
+
+function boxesTouch(a, b, gap) {
+  return a.l < b.r + gap && a.r + gap > b.l && a.t < b.b + gap && a.b + gap > b.t;
+}
+
+function segmentHitsBox(x1, y1, x2, y2, box, gap) {
+  const l = box.l - gap;
+  const r = box.r + gap;
+  const t = box.t - gap;
+  const b = box.b + gap;
+  if (Math.abs(x1 - x2) < 0.8) {
+    const yMin = Math.min(y1, y2);
+    const yMax = Math.max(y1, y2);
+    return x1 > l && x1 < r && yMax > t && yMin < b;
+  }
+  if (Math.abs(y1 - y2) < 0.8) {
+    const xMin = Math.min(x1, x2);
+    const xMax = Math.max(x1, x2);
+    return y1 > t && y1 < b && xMax > l && xMin < r;
+  }
+  return false;
+}
+
+function calloutPath(px, py, box) {
+  const fromY = py - 12;
+  if (px >= box.l && px <= box.r) return [[px, fromY, px, box.b]];
+  const lane = box.t - 14;
+  return [
+    [px, fromY, px, lane],
+    [px, lane, box.cx, lane],
+    [box.cx, lane, box.cx, box.t],
+  ];
+}
+
+function placeCallouts(points, bounds, lineY) {
+  const gap = 12;
+  const placed = [];
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  for (const point of sorted) {
+    const size = labelBox(point.text);
+    let chosen = null;
+    for (let row = 0; row < 10 && !chosen; row += 1) {
+      for (const col of [0, -1, 1, -2, 2, -3, 3]) {
+        const cy = point.y - 42 - row * (size.h + gap);
+        const cx = point.x + col * (size.w * 0.62 + gap);
+        const box = { l: cx - size.w / 2, r: cx + size.w / 2, t: cy - size.h / 2, b: cy + size.h / 2, cx, cy };
+        if (box.l < bounds.left || box.r > bounds.right || box.t < bounds.top) continue;
+        if (placed.some((item) => boxesTouch(box, item, gap))) continue;
+        if (bounds.fixed.some((item) => boxesTouch(box, item, gap))) continue;
+        if (!lineY(box)) continue;
+        const path = calloutPath(point.x, point.y, box);
+        const obstacles = [...placed, ...bounds.fixed];
+        const blocked = obstacles.some((item) => path.some(([x1, y1, x2, y2]) => segmentHitsBox(x1, y1, x2, y2, item, 6)));
+        if (blocked) continue;
+        chosen = { ...point, ...box, path };
+        break;
+      }
+    }
+    if (!chosen) {
+      const cy = bounds.top + 20 + placed.length * (size.h + gap);
+      const cx = Math.min(bounds.right - size.w / 2, Math.max(bounds.left + size.w / 2, point.x));
+      const box = { l: cx - size.w / 2, r: cx + size.w / 2, t: cy - size.h / 2, b: cy + size.h / 2, cx, cy };
+      chosen = { ...point, ...box, path: calloutPath(point.x, point.y, box) };
+    }
+    placed.push(chosen);
+  }
+  return placed;
 }
 
 function balanceOnChart(rows, age, key) {
@@ -261,35 +339,72 @@ function opaqueLabel(x, y, text, { fill, bg, stroke, anchor = "middle" }) {
   );
 }
 
-function ChartNotes({ xAxisMap, yAxisMap, offset, markers, stacks, chartRows, theme, retirementAge, lifeExpectancy, targetCapital, yMax }) {
+function ChartNotes({ xAxisMap, yAxisMap, offset, markers, chartRows, theme, retirementAge, lifeExpectancy, targetCapital, yMax }) {
   const xAxis = xAxisMap && Object.values(xAxisMap)[0];
   const yAxis = yAxisMap && Object.values(yAxisMap)[0];
   if (!xAxis?.scale || !yAxis?.scale || !offset) return null;
-  const notes = (markers || []).map((ev, i) => {
+  const retireText = `Retirement ${retirementAge}`;
+  const horizonText = `Horizon ${lifeExpectancy}`;
+  const retireSize = labelBox(retireText);
+  const horizonSize = labelBox(horizonText);
+  const retireX = xAxis.scale(retirementAge);
+  const horizonX = xAxis.scale(lifeExpectancy);
+  const fixed = [];
+  if (Number.isFinite(retireX)) {
+    const cx = Math.min(offset.left + offset.width - retireSize.w / 2 - 8, Math.max(offset.left + retireSize.w / 2, retireX + 8 + retireSize.w / 2));
+    fixed.push({ l: cx - retireSize.w / 2, r: cx + retireSize.w / 2, t: 8, b: 8 + retireSize.h, cx, cy: 8 + retireSize.h / 2, text: retireText, stroke: theme.gold, fill: theme.gold });
+  }
+  if (Number.isFinite(horizonX)) {
+    const cx = Math.max(offset.left + horizonSize.w / 2 + 8, Math.min(offset.left + offset.width - horizonSize.w / 2, horizonX - 8 - horizonSize.w / 2));
+    const box = { l: cx - horizonSize.w / 2, r: cx + horizonSize.w / 2, t: 8, b: 8 + horizonSize.h, cx, cy: 8 + horizonSize.h / 2 };
+    if (!fixed.some((item) => boxesTouch(box, item, 12))) {
+      fixed.push({ ...box, text: horizonText, stroke: theme.axis, fill: theme.axis });
+    }
+  }
+  const points = (markers || []).map((ev) => {
     const x = xAxis.scale(ev.age);
     const y = yAxis.scale(balanceOnChart(chartRows, ev.age, "withContributions"));
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    const color = ev.kind === "schedule" ? "#22d3ee" : "#fbbf24";
-    const lift = (stacks[i] || 0) * 34;
-    const labelY = y - 28 - lift;
-    return (
-      <g key={`${ev.kind}-${ev.label}-${ev.age}-${i}`}>
-        <line x1={x} y1={y - 10} x2={x} y2={labelY + 13} stroke={color} strokeWidth={2} />
-        {opaqueLabel(x, labelY, ev.text, { fill: theme.text, bg: theme.cardBg, stroke: color })}
-      </g>
-    );
+    return { ...ev, x, y, text: ev.text, color: ev.kind === "schedule" ? "#22d3ee" : "#fbbf24" };
+  }).filter(Boolean);
+  const ageAt = (x) => (xAxis.scale.invert ? xAxis.scale.invert(x) : evAge(xAxis, x));
+  const placed = placeCallouts(points, {
+    left: offset.left + 4,
+    right: offset.left + offset.width - 4,
+    top: 40,
+    fixed,
+  }, (box) => {
+    for (let x = box.l; x <= box.r; x += 8) {
+      const age = ageAt(x);
+      const line = Math.min(
+        yAxis.scale(balanceOnChart(chartRows, age, "withContributions")),
+        yAxis.scale(balanceOnChart(chartRows, age, "baseline"))
+      );
+      if (line < box.b + 8) return false;
+    }
+    return true;
   });
-  const retireX = xAxis.scale(retirementAge);
-  const horizonX = xAxis.scale(lifeExpectancy);
-  const topY = offset.top + 16;
   return (
     <g>
-      {Number.isFinite(retireX) ? opaqueLabel(retireX + 8, topY, `Retirement ${retirementAge}`, { fill: theme.gold, bg: theme.cardBg, stroke: theme.gold, anchor: "start" }) : null}
-      {Number.isFinite(horizonX) ? opaqueLabel(horizonX - 8, topY, `Target horizon ${lifeExpectancy}`, { fill: theme.axis, bg: theme.cardBg, stroke: theme.axis, anchor: "end" }) : null}
-      {targetCapital > 0 ? opaqueLabel(offset.left + offset.width - 8, yAxis.scale(Math.min(targetCapital, yMax)) - 16, "Target", { fill: theme.primary, bg: theme.cardBg, stroke: theme.primary, anchor: "end" }) : null}
-      {notes}
+      {fixed.map((box) => opaqueLabel(box.cx, box.cy, box.text, { fill: box.fill, bg: theme.cardBg, stroke: box.stroke }))}
+      {targetCapital > 0 ? opaqueLabel(offset.left + offset.width - 8, yAxis.scale(Math.min(targetCapital, yMax)) - 18, "Target", { fill: theme.primary, bg: theme.cardBg, stroke: theme.primary, anchor: "end" }) : null}
+      {placed.map((box, i) => (
+        <g key={`${box.kind}-${box.text}-${i}`}>
+          {box.path.map(([x1, y1, x2, y2], n) => (
+            <line key={n} x1={x1} y1={y1} x2={x2} y2={y2} stroke={box.color} strokeWidth={2} />
+          ))}
+          {opaqueLabel(box.cx, box.cy, box.text, { fill: theme.text, bg: theme.cardBg, stroke: box.color })}
+        </g>
+      ))}
     </g>
   );
+}
+
+function evAge(xAxis, x) {
+  const domain = xAxis.scale.domain();
+  const range = xAxis.scale.range();
+  const t = (x - range[0]) / ((range[1] - range[0]) || 1);
+  return domain[0] + t * (domain[1] - domain[0]);
 }
 
 function ContribTooltip({ active, payload, label, theme }) {
@@ -412,7 +527,8 @@ export default function Contributions({
     .filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0)
     .map((s) => ({
       age: Number(s.startAge) || currentAge,
-      label: `${s.account === "super" ? "Super" : "Personal"} extra ${fmtAUD(moneyNumber(s.amount))}/mo`,
+      label: `${s.account === "super" ? "Super" : "Personal"} +${conciseMoney(moneyNumber(s.amount))}/mo`,
+      amount: moneyNumber(s.amount),
       account: s.account === "super" ? "super" : "personal",
       kind: "schedule",
     }));
@@ -420,7 +536,6 @@ export default function Contributions({
     ...lumpMarkers.map((ev) => ({ ...ev, kind: "lump", account: ev.account === "super" ? "super" : "personal" })),
     ...contributionMarkers,
   ];
-  const markerStacks = lumpLabelStacks(chartMarkers, startAge, endAge);
   const yPeak = Math.max(
     targetCapital || 0,
     ...chartRows.map((row) => Math.max(row.baseline || 0, row.withContributions || 0))
@@ -719,7 +834,7 @@ export default function Contributions({
             </p>
             <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 78 + Math.max(0, ...markerStacks, 0) * 34, right: 24, left: 8, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 56 + Math.max(1, chartMarkers.length) * 36, right: 24, left: 8, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
                   <YAxis domain={[0, yAxisScale.max]} ticks={yTicks} tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
@@ -743,11 +858,7 @@ export default function Contributions({
                   ))}
                   <Customized
                     component={ChartNotes}
-                    markers={chartMarkers.map((ev) => ({
-                      ...ev,
-                      text: ev.kind === "schedule" ? ev.label : `${fmtAUD(ev.amount)} ${ev.label}`,
-                    }))}
-                    stacks={markerStacks}
+                    markers={chartMarkers.map((ev) => ({ ...ev, text: markerCaption(ev) }))}
                     chartRows={chartRows}
                     theme={theme}
                     retirementAge={retirementAge}
