@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   ComposedChart,
+  Customized,
   Legend,
   Line as ReLine,
   ReferenceDot,
@@ -107,7 +108,7 @@ function PlanSlider({ id, label, value, onChange, min, max, step, money, theme }
     if (!focus) setText(String(value));
   }, [value, focus]);
   const shown = money && !focus ? `$${Number(value || 0).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : text;
-  const fill = ((Number(value) - min) / Math.max(1, max - min)) * 100;
+  const fill = (Number(value) - min) / Math.max(1, max - min);
   return (
     <div className="ut-field">
       <label htmlFor={id}>{label}</label>
@@ -121,7 +122,7 @@ function PlanSlider({ id, label, value, onChange, min, max, step, money, theme }
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           className="ut-range"
-          style={{ "--range-fill": `${Math.min(100, Math.max(0, fill))}%`, "--range-color": theme.accent, "--range-track": theme.border, "--range-thumb": theme.inputBg, "--range-thumb-border": theme.accent }}
+          style={{ "--range-pct": String(Math.min(1, Math.max(0, fill))), "--range-color": theme.accent, "--range-track": theme.border, "--range-thumb": theme.inputBg, "--range-thumb-border": theme.accent }}
         />
         <input
           className="ut-mobile-input"
@@ -236,16 +237,57 @@ function balanceOnChart(rows, age, key) {
   return prev[key] || 0;
 }
 
-function LumpCallout({ viewBox, text, fill, bg, lift, color = "#fbbf24" }) {
-  if (!viewBox || viewBox.x == null) return null;
-  const x = viewBox.x;
-  const y = viewBox.y - 18 - lift;
-  const width = Math.min(240, Math.max(128, text.length * 7.2));
+function axisHeadroom(peak) {
+  const value = Math.max(0, Number(peak) || 0);
+  if (value <= 0) return { max: 1_000_000, step: 1_000_000 };
+  const rough = value / 4;
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const n = rough / pow;
+  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  const step = nice * pow;
+  const top = Math.ceil((value * 1.001) / step) * step;
+  return { max: top + step, step };
+}
+
+function opaqueLabel(x, y, text, { fill, bg, stroke, anchor = "middle" }) {
+  const width = Math.min(260, Math.max(108, text.length * 7.4 + 20));
+  const height = 26;
+  const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
   return (
     <g>
-      <line x1={x} y1={viewBox.y - 8} x2={x} y2={y + 10} stroke={color} strokeWidth={2} />
-      <rect x={x - width / 2} y={y - 16} width={width} height={26} rx={8} fill={bg} stroke={color} strokeWidth={1.5} />
-      <text x={x} y={y + 2} textAnchor="middle" fill={fill} fontSize={12} fontWeight={800}>{text}</text>
+      <rect x={left} y={y - height / 2} width={width} height={height} rx={8} fill={bg} fillOpacity={1} stroke={stroke} strokeWidth={1.5} />
+      <text x={left + width / 2} y={y + 4} textAnchor="middle" fill={fill} fontSize={12} fontWeight={800}>{text}</text>
+    </g>
+  );
+}
+
+function ChartNotes({ xAxisMap, yAxisMap, offset, markers, stacks, chartRows, theme, retirementAge, lifeExpectancy, targetCapital, yMax }) {
+  const xAxis = xAxisMap && Object.values(xAxisMap)[0];
+  const yAxis = yAxisMap && Object.values(yAxisMap)[0];
+  if (!xAxis?.scale || !yAxis?.scale || !offset) return null;
+  const notes = (markers || []).map((ev, i) => {
+    const x = xAxis.scale(ev.age);
+    const y = yAxis.scale(balanceOnChart(chartRows, ev.age, "withContributions"));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const color = ev.kind === "schedule" ? "#22d3ee" : "#fbbf24";
+    const lift = (stacks[i] || 0) * 34;
+    const labelY = y - 28 - lift;
+    return (
+      <g key={`${ev.kind}-${ev.label}-${ev.age}-${i}`}>
+        <line x1={x} y1={y - 10} x2={x} y2={labelY + 13} stroke={color} strokeWidth={2} />
+        {opaqueLabel(x, labelY, ev.text, { fill: theme.text, bg: theme.cardBg, stroke: color })}
+      </g>
+    );
+  });
+  const retireX = xAxis.scale(retirementAge);
+  const horizonX = xAxis.scale(lifeExpectancy);
+  const topY = offset.top + 16;
+  return (
+    <g>
+      {Number.isFinite(retireX) ? opaqueLabel(retireX + 8, topY, `Retirement ${retirementAge}`, { fill: theme.gold, bg: theme.cardBg, stroke: theme.gold, anchor: "start" }) : null}
+      {Number.isFinite(horizonX) ? opaqueLabel(horizonX - 8, topY, `Target horizon ${lifeExpectancy}`, { fill: theme.axis, bg: theme.cardBg, stroke: theme.axis, anchor: "end" }) : null}
+      {targetCapital > 0 ? opaqueLabel(offset.left + offset.width - 8, yAxis.scale(Math.min(targetCapital, yMax)) - 16, "Target", { fill: theme.primary, bg: theme.cardBg, stroke: theme.primary, anchor: "end" }) : null}
+      {notes}
     </g>
   );
 }
@@ -379,6 +421,12 @@ export default function Contributions({
     ...contributionMarkers,
   ];
   const markerStacks = lumpLabelStacks(chartMarkers, startAge, endAge);
+  const yPeak = Math.max(
+    targetCapital || 0,
+    ...chartRows.map((row) => Math.max(row.baseline || 0, row.withContributions || 0))
+  );
+  const yAxisScale = axisHeadroom(yPeak);
+  const yTicks = Array.from({ length: Math.round(yAxisScale.max / yAxisScale.step) + 1 }, (_, i) => i * yAxisScale.step);
   const showRemoved = withExtra.rows.some((r) => r.assetRemoved > 0);
   const showUnfunded = withExtra.rows.some((r) => r.unfunded > 0);
 
@@ -674,42 +722,39 @@ export default function Contributions({
                 <ComposedChart data={chartRows} margin={{ top: 78 + Math.max(0, ...markerStacks, 0) * 34, right: 24, left: 8, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
-                  <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
+                  <YAxis domain={[0, yAxisScale.max]} ticks={yTicks} tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
                   <Tooltip content={<ContribTooltip theme={theme} />} />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text, fontSize: 15, fontWeight: 700 }} iconSize={18} />
                   <ReLine type="linear" dataKey="baseline" name="Existing plan" stroke={theme.muted} strokeWidth={3} dot={false} />
                   <ReLine type="linear" dataKey="withContributions" name="With additional contributions" stroke="#22d3ee" strokeWidth={5} dot={false} />
-                  <ReferenceLine x={retirementAge} stroke={theme.gold} strokeWidth={3} strokeDasharray="6 3" label={{ value: `Retirement ${retirementAge}`, fill: theme.gold, fontSize: 14, fontWeight: 800, position: "insideTopLeft" }} />
-                  <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeWidth={2} strokeDasharray="3 3" label={{ value: `Target horizon ${lifeExpectancy}`, fill: theme.axis, fontSize: 13, fontWeight: 700, position: "insideTopRight" }} />
-                  {targetCapital > 0 ? (
-                    <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" label={{ value: "Target", fill: theme.primary, fontSize: 11, position: "insideTopRight" }} />
-                  ) : null}
-                  {chartMarkers.map((ev, i) => {
-                    const series = "withContributions";
-                    const color = ev.kind === "schedule" ? "#22d3ee" : "#fbbf24";
-                    const text = ev.kind === "schedule" ? ev.label : `${fmtAUD(ev.amount)} ${ev.label}`;
-                    return (
-                      <ReferenceDot
-                        key={`${ev.kind}-${ev.label}-${ev.age}-${i}`}
-                        x={ev.age}
-                        y={balanceOnChart(chartRows, ev.age, series)}
-                        r={8}
-                        fill={color}
-                        stroke="#fff"
-                        strokeWidth={2}
-                        label={(props) => (
-                          <LumpCallout
-                            {...props}
-                            text={text}
-                            fill={theme.text}
-                            bg={theme.cardBg}
-                            color={color}
-                            lift={markerStacks[i] * 34}
-                          />
-                        )}
-                      />
-                    );
-                  })}
+                  <ReferenceLine x={retirementAge} stroke={theme.gold} strokeWidth={3} strokeDasharray="6 3" />
+                  <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeWidth={2} strokeDasharray="3 3" />
+                  {targetCapital > 0 ? <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" /> : null}
+                  {chartMarkers.map((ev, i) => (
+                    <ReferenceDot
+                      key={`${ev.kind}-${ev.label}-${ev.age}-${i}`}
+                      x={ev.age}
+                      y={balanceOnChart(chartRows, ev.age, "withContributions")}
+                      r={8}
+                      fill={ev.kind === "schedule" ? "#22d3ee" : "#fbbf24"}
+                      stroke="#fff"
+                      strokeWidth={2}
+                    />
+                  ))}
+                  <Customized
+                    component={ChartNotes}
+                    markers={chartMarkers.map((ev) => ({
+                      ...ev,
+                      text: ev.kind === "schedule" ? ev.label : `${fmtAUD(ev.amount)} ${ev.label}`,
+                    }))}
+                    stacks={markerStacks}
+                    chartRows={chartRows}
+                    theme={theme}
+                    retirementAge={retirementAge}
+                    lifeExpectancy={lifeExpectancy}
+                    targetCapital={targetCapital}
+                    yMax={yAxisScale.max}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

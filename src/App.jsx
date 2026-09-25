@@ -1258,7 +1258,7 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
           onChange={(e) => onChange(clamp(Number(e.target.value), min, max))}
           className="ut-range"
           style={{
-            "--range-fill": `${sliderFillClamped}%`,
+            "--range-pct": String(sliderFillClamped / 100),
             "--range-color": theme.accent,
             "--range-track": theme.border,
             "--range-thumb": theme.inputBg || theme.pageBg,
