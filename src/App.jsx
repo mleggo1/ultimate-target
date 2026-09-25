@@ -116,6 +116,8 @@ export default function App() {
   const [personalStart, setPersonalStart] = useState(200000);
   const [superStart, setSuperStart] = useState(0);
   const [monthlySave, setMonthlySave] = useState(1500);
+  const [personalMonthly, setPersonalMonthly] = useState(1500);
+  const [superMonthly, setSuperMonthly] = useState(0);
   const [annualSpendToday, setAnnualSpendToday] = useState(60000);
   const [delayYears, setDelayYears] = useState(3);
   const [returnPa, setReturnPa] = useState(8.0);
@@ -159,6 +161,8 @@ export default function App() {
     personalStart,
     superStart,
     monthlySave,
+    personalMonthly,
+    superMonthly,
     annualSpendToday,
     delayYears,
     returnPa,
@@ -186,6 +190,8 @@ export default function App() {
     setPersonalStart(s.personalStart ?? s.initialAmount ?? 200000);
     setSuperStart(s.superStart ?? 0);
     setMonthlySave(s.monthlySave ?? 1500);
+    setPersonalMonthly(s.personalMonthly ?? s.monthlySave ?? 1500);
+    setSuperMonthly(s.superMonthly ?? 0);
     setAnnualSpendToday(s.annualSpendToday ?? 60000);
     setDelayYears(s.delayYears ?? 3);
     setReturnPa(s.returnPa ?? 8);
@@ -213,7 +219,7 @@ export default function App() {
       localStorage.setItem(LS_KEY, JSON.stringify(snapshot()));
     } catch {}
     // eslint-disable-next-line
-  }, [client, currentAge, retirementAge, lifeExpectancy, initialAmount, personalStart, superStart, monthlySave, annualSpendToday, delayYears, returnPa, postRetRealPa, inflationPa, diyFeePct, diyFixed, advisorFeePct, advisorFixed, tab, compareAdv, dark, activePreset, contributionSchedules, lumpSums]);
+  }, [client, currentAge, retirementAge, lifeExpectancy, initialAmount, personalStart, superStart, monthlySave, personalMonthly, superMonthly, annualSpendToday, delayYears, returnPa, postRetRealPa, inflationPa, diyFeePct, diyFixed, advisorFeePct, advisorFixed, tab, compareAdv, dark, activePreset, contributionSchedules, lumpSums]);
 
   const themeCard = {
     background: theme.cardBg,
@@ -677,7 +683,10 @@ export default function App() {
                 setSuperStart(n);
                 setInitialAmount(personalStart + n);
               }}
-              monthlySave={monthlySave}
+              personalMonthly={personalMonthly}
+              superMonthly={superMonthly}
+              onPersonalMonthly={(v) => setPersonalMonthly(clamp(v, 0, 25_000))}
+              onSuperMonthly={(v) => setSuperMonthly(clamp(v, 0, 25_000))}
               returnPa={returnPa}
               postRetRealPa={postRetRealPa}
               inflationPa={inflationPa}
@@ -687,7 +696,6 @@ export default function App() {
               onAnnualSpend={(v) => setAnnualSpendToday(clamp(v, 0, 1_300_000))}
               onRetirementAge={(v) => setRetirementAge(clamp(v, currentAge + 1, 100))}
               onLifeExpectancy={(v) => setLifeExpectancy(clamp(v, retirementAge + 1, 110))}
-              onMonthlySave={(v) => setMonthlySave(clamp(v, 0, 25_000))}
               schedules={contributionSchedules}
               setSchedules={setContributionSchedules}
               lumpSums={lumpSums}

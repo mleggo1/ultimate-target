@@ -551,6 +551,12 @@ describe("additional contributions and lump sums", () => {
     reconcile(after.rows);
   });
 
+  it("sends the monthly super amount to super and leaves personal separate", () => {
+    const split = simulate(plan({ monthlySave: 1000, monthlySuper: 400, retirementAge: 65, horizonYears: 1 }));
+    assert.equal(rowAtAge(split.rows, 41).personal, 1000 * 12);
+    assert.equal(rowAtAge(split.rows, 41).super, 400 * 12);
+  });
+
   it("keeps a split starting balance in personal and super", () => {
     const split = simulate(plan({
       startAssets: 300000,

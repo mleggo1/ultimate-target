@@ -207,6 +207,20 @@ function EntryBar({ title, summary, enabled, onToggle, expanded, onEdit, onDelet
   );
 }
 
+function lumpLabelStacks(events, startAge, endAge) {
+  const gap = Math.max(4, (endAge - startAge) * 0.09);
+  const order = events.map((ev, index) => ({ ...ev, index })).sort((a, b) => a.age - b.age || b.amount - a.amount);
+  const placed = [];
+  const stacks = events.map(() => 0);
+  for (const ev of order) {
+    let stack = 0;
+    while (placed.some((item) => item.stack === stack && Math.abs(item.age - ev.age) < gap)) stack += 1;
+    placed.push({ age: ev.age, stack });
+    stacks[ev.index] = stack;
+  }
+  return stacks;
+}
+
 function balanceOnChart(rows, age) {
   if (!rows?.length) return 0;
   let prev = rows[0];
@@ -260,7 +274,10 @@ export default function Contributions({
   superStart,
   onPersonalStart,
   onSuperStart,
-  monthlySave,
+  personalMonthly,
+  superMonthly,
+  onPersonalMonthly,
+  onSuperMonthly,
   returnPa,
   postRetRealPa,
   inflationPa,
@@ -270,7 +287,6 @@ export default function Contributions({
   onAnnualSpend,
   onRetirementAge,
   onLifeExpectancy,
-  onMonthlySave,
   schedules,
   setSchedules,
   lumpSums,
@@ -293,7 +309,8 @@ export default function Contributions({
       startAssets: personalOpening + superOpening,
       startPersonal: personalOpening,
       startSuper: superOpening,
-      monthlySave: Math.max(0, monthlySave),
+      monthlySave: Math.max(0, personalMonthly),
+      monthlySuper: Math.max(0, superMonthly),
       preAnnualGross: Math.max(0, returnPa) / 100,
       postRealAnnualGross: postRetRealPa / 100,
       inflationAnnual: Math.max(0, inflationPa) / 100,
@@ -303,7 +320,7 @@ export default function Contributions({
       feeAnnualPost: Math.max(0, diyFeePct) / 100,
       fixedFeeAnnual: Math.max(0, diyFixed),
     }),
-    [currentAge, retirementAge, lifeExpectancy, personalOpening, superOpening, monthlySave, returnPa, postRetRealPa, inflationPa, annualSpendToday, diyFeePct, diyFixed]
+    [currentAge, retirementAge, lifeExpectancy, personalOpening, superOpening, personalMonthly, superMonthly, returnPa, postRetRealPa, inflationPa, annualSpendToday, diyFeePct, diyFixed]
   );
 
   const usableSchedules = schedules.map((s) => ({ ...s, stopAge: s.untilEnd ? horizonEnd : s.stopAge }));
@@ -349,6 +366,7 @@ export default function Contributions({
   }, [baseline, withExtra]);
 
   const lumpMarkers = withExtra.events || [];
+  const lumpStacks = lumpLabelStacks(lumpMarkers, startAge, endAge);
   const showRemoved = withExtra.rows.some((r) => r.assetRemoved > 0);
   const showUnfunded = withExtra.rows.some((r) => r.unfunded > 0);
 
@@ -472,7 +490,8 @@ export default function Contributions({
           <div><dt>Personal starting balance</dt><dd>{fmtAUD(personalOpening)}</dd></div>
           <div><dt>Super starting balance</dt><dd>{fmtAUD(superOpening)}</dd></div>
           <div><dt>Combined starting balance</dt><dd>{fmtAUD(personalOpening + superOpening)}</dd></div>
-          <div><dt>Existing contributions</dt><dd>{fmtAUD(monthlySave)}/month until {retirementAge}</dd></div>
+          <div><dt>Personal each month</dt><dd>{fmtAUD(personalMonthly)}</dd></div>
+          <div><dt>Super each month</dt><dd>{fmtAUD(superMonthly)}</dd></div>
           <div><dt>Return before retirement</dt><dd>{returnPa}% p.a.</dd></div>
           <div><dt>Retirement return</dt><dd>{postRetRealPa}% p.a.</dd></div>
           <div><dt>Inflation</dt><dd>{inflationPa}% p.a.</dd></div>
@@ -593,7 +612,8 @@ export default function Contributions({
               Move annual spend to see when personal investments run out. Super stays invested and is not used for this spending.
             </p>
             <PlanSlider id="contrib-spend" label="Annual spend in today's dollars" money theme={theme} min={0} max={1300000} step={1000} value={Math.max(0, annualSpendToday)} onChange={onAnnualSpend} />
-            <PlanSlider id="contrib-monthly" label="Existing monthly savings" money theme={theme} min={0} max={25000} step={100} value={Math.max(0, monthlySave)} onChange={onMonthlySave} />
+            <PlanSlider id="contrib-personal-monthly" label="Personal investing per month" money theme={theme} min={0} max={25000} step={100} value={Math.max(0, personalMonthly)} onChange={onPersonalMonthly} />
+            <PlanSlider id="contrib-super-monthly" label="Superannuation per month" money theme={theme} min={0} max={25000} step={100} value={Math.max(0, superMonthly)} onChange={onSuperMonthly} />
             <PlanSlider id="contrib-retire" label="Retirement age" theme={theme} min={currentAge + 1} max={100} step={1} value={retirementAge} onChange={onRetirementAge} />
             <PlanSlider id="contrib-life" label="Life expectancy" theme={theme} min={retirementAge + 1} max={110} step={1} value={lifeExpectancy} onChange={onLifeExpectancy} />
             <div className="ut-runout" style={{ borderColor: withExtra.depletedAge ? theme.danger : theme.success, marginTop: 12 }}>
@@ -636,7 +656,7 @@ export default function Contributions({
             </p>
             <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 78, right: 24, left: 8, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 78 + Math.max(0, ...lumpStacks, 0) * 34, right: 24, left: 8, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
                   <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
@@ -664,7 +684,7 @@ export default function Contributions({
                           text={`${fmtAUD(ev.amount)} ${ev.label}`}
                           fill={theme.text}
                           bg={theme.cardBg}
-                          lift={(i % 3) * 28}
+                          lift={lumpStacks[i] * 34}
                         />
                       )}
                     />
@@ -734,13 +754,14 @@ export default function Contributions({
         <h2 id="contrib-summary-title" style={{ marginTop: 0, fontSize: 18 }}>Summary of this plan</h2>
         <ul className="ut-plan-summary">
           <li>You start with {fmtAUD(personalOpening)} in personal investments and {fmtAUD(superOpening)} in super. Combined, that is {fmtAUD(personalOpening + superOpening)}.</li>
-          <li>Existing savings of {fmtAUD(monthlySave)} a month continue until age {retirementAge}. Anything added below is extra, so it is not counted twice.</li>
+          <li>Each month until age {retirementAge} you contribute {fmtAUD(personalMonthly)} to personal investments and {fmtAUD(superMonthly)} to superannuation. Extra amounts below are on top of that.</li>
           {schedules.filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0).map((s) => {
             const extraPersonal = schedules.filter((item) => item.enabled !== false && item.account !== "super").reduce((sum, item) => sum + moneyNumber(item.amount), 0);
             const extraSuper = schedules.filter((item) => item.enabled !== false && item.account === "super").reduce((sum, item) => sum + moneyNumber(item.amount), 0);
-            const personalTotal = Math.max(0, monthlySave) + extraPersonal;
+            const personalTotal = Math.max(0, personalMonthly) + extraPersonal;
+            const superTotal = Math.max(0, superMonthly) + extraSuper;
             const totalNote = s.account === "super"
-              ? ` (${fmtAUD(extraSuper)} a month into super in total)`
+              ? ` (${fmtAUD(superTotal)} a month into super in total)`
               : ` (${fmtAUD(personalTotal)} a month in total)`;
             return (
               <li key={s.id}>{s.account === "super" ? "Super" : "Personal"}: {s.name?.trim() || "Additional contribution"} — {formatContributionSummary(moneyNumber(s.amount), s.startAge, s.untilEnd ? horizonEnd : s.stopAge, s.untilEnd).replace(/\.$/, "")}{totalNote}.</li>

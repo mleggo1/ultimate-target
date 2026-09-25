@@ -236,6 +236,7 @@ export function simulate(input = {}) {
     const r = pre ? mPre : mPost;
     const feeAnnual = pre ? feeAnnualPre : feeAnnualPost;
     const c = pre && m > dly ? monthlySave : 0;
+    const cSuper = pre && m > dly ? Math.max(0, num(input.monthlySuper)) : 0;
     const sp = m > toRet ? (annualSpendToday / 12) * Math.pow(1 + mInfl, m) : 0;
     const openingPersonal = personal;
     const openingSuper = superBal;
@@ -287,8 +288,8 @@ export function simulate(input = {}) {
       personal = openingPersonal * (1 + r) + c - sp - mFix;
     }
 
-    if (extraS !== 0 || proceedsS !== 0) {
-      superBal = openingSuper * (1 + r) + extraS + proceedsS;
+    if (extraS !== 0 || proceedsS !== 0 || cSuper !== 0) {
+      superBal = openingSuper * (1 + r) + extraS + cSuper + proceedsS;
     } else if (openingSuper !== 0) {
       superBal = openingSuper * (1 + r);
     }
@@ -306,7 +307,7 @@ export function simulate(input = {}) {
 
     if (personal <= 0 && dep == null) dep = age;
 
-    const deposited = c + extraP + extraS + proceedsP + proceedsS;
+    const deposited = c + cSuper + extraP + extraS + proceedsP + proceedsS;
     totalContributed += deposited;
     cumulativeDeposits += deposited;
 
@@ -314,7 +315,7 @@ export function simulate(input = {}) {
     yFees += personalPct + superPct + mFix;
     yWithdraw += sp;
     yContrib += deposited;
-    yExisting += c;
+    yExisting += c + cSuper;
     yAdditional += extraP + extraS;
     yLump += proceedsP + proceedsS;
     yRemoved += removed;
