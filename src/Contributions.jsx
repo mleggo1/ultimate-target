@@ -209,7 +209,7 @@ function EntryBar({ title, summary, enabled, onToggle, expanded, onEdit, onDelet
 
 function lumpLabelStacks(events, startAge, endAge) {
   const gap = Math.max(4, (endAge - startAge) * 0.09);
-  const order = events.map((ev, index) => ({ ...ev, index })).sort((a, b) => a.age - b.age || b.amount - a.amount);
+  const order = events.map((ev, index) => ({ ...ev, index })).sort((a, b) => a.age - b.age || (b.amount || 0) - (a.amount || 0));
   const placed = [];
   const stacks = events.map(() => 0);
   for (const ev of order) {
@@ -221,30 +221,30 @@ function lumpLabelStacks(events, startAge, endAge) {
   return stacks;
 }
 
-function balanceOnChart(rows, age) {
+function balanceOnChart(rows, age, key) {
   if (!rows?.length) return 0;
   let prev = rows[0];
   for (const row of rows) {
-    if (row.age === age) return row.withContributions || 0;
+    if (row.age === age) return row[key] || 0;
     if (row.age > age) {
       const span = row.age - prev.age || 1;
       const t = (age - prev.age) / span;
-      return (prev.withContributions || 0) + ((row.withContributions || 0) - (prev.withContributions || 0)) * t;
+      return (prev[key] || 0) + ((row[key] || 0) - (prev[key] || 0)) * t;
     }
     prev = row;
   }
-  return prev.withContributions || 0;
+  return prev[key] || 0;
 }
 
-function LumpCallout({ viewBox, text, fill, bg, lift }) {
+function LumpCallout({ viewBox, text, fill, bg, lift, color = "#fbbf24" }) {
   if (!viewBox || viewBox.x == null) return null;
   const x = viewBox.x;
   const y = viewBox.y - 18 - lift;
   const width = Math.min(240, Math.max(128, text.length * 7.2));
   return (
     <g>
-      <line x1={x} y1={viewBox.y - 8} x2={x} y2={y + 10} stroke="#fbbf24" strokeWidth={2} />
-      <rect x={x - width / 2} y={y - 16} width={width} height={26} rx={8} fill={bg} stroke="#fbbf24" strokeWidth={1.5} />
+      <line x1={x} y1={viewBox.y - 8} x2={x} y2={y + 10} stroke={color} strokeWidth={2} />
+      <rect x={x - width / 2} y={y - 16} width={width} height={26} rx={8} fill={bg} stroke={color} strokeWidth={1.5} />
       <text x={x} y={y + 2} textAnchor="middle" fill={fill} fontSize={12} fontWeight={800}>{text}</text>
     </g>
   );
@@ -257,9 +257,15 @@ function ContribTooltip({ active, payload, label, theme }) {
   return (
     <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 12, padding: "10px 12px", color: theme.text }}>
       <div style={{ fontWeight: 800, marginBottom: 6 }}>Age {label}</div>
-      <div>Existing plan: {fmtAUD(row.baseline)}</div>
-      <div>With contributions: {fmtAUD(row.withContributions)}</div>
-      <div>Difference: {fmtAUD(row.difference)}</div>
+      <div>Existing personal: {fmtAUD(row.existingPersonal)}</div>
+      <div>Personal with extras: {fmtAUD(row.extraPersonal)}</div>
+      {row.existingSuper > 0 || row.extraSuper > 0 ? (
+        <>
+          <div>Existing super: {fmtAUD(row.existingSuper)}</div>
+          <div>Super with extras: {fmtAUD(row.extraSuper)}</div>
+        </>
+      ) : null}
+      <div>Combined difference: {fmtAUD(row.difference)}</div>
     </div>
   );
 }
@@ -357,16 +363,29 @@ export default function Contributions({
 
   const chartRows = useMemo(() => {
     const map = new Map();
-    baseline.rows.forEach((r) => map.set(r.age, { age: r.age, baseline: r.nominal }));
+    baseline.rows.forEach((r) => map.set(r.age, { age: r.age, existingPersonal: r.personal, existingSuper: r.super, baseline: r.nominal }));
     withExtra.rows.forEach((r) => {
-      const p = map.get(r.age) || { age: r.age, baseline: 0 };
-      map.set(r.age, { ...p, withContributions: r.nominal, difference: r.nominal - (p.baseline || 0) });
+      const p = map.get(r.age) || { age: r.age, existingPersonal: 0, existingSuper: 0, baseline: 0 };
+      map.set(r.age, { ...p, extraPersonal: r.personal, extraSuper: r.super, withContributions: r.nominal, difference: r.nominal - (p.baseline || 0) });
     });
     return Array.from(map.values()).sort((a, b) => a.age - b.age);
   }, [baseline, withExtra]);
 
   const lumpMarkers = withExtra.events || [];
-  const lumpStacks = lumpLabelStacks(lumpMarkers, startAge, endAge);
+  const contributionMarkers = schedules
+    .filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0)
+    .map((s) => ({
+      age: Number(s.startAge) || currentAge,
+      label: `${s.account === "super" ? "Super" : "Personal"} extra ${fmtAUD(moneyNumber(s.amount))}/mo`,
+      account: s.account === "super" ? "super" : "personal",
+      kind: "schedule",
+    }));
+  const chartMarkers = [
+    ...lumpMarkers.map((ev) => ({ ...ev, kind: "lump", account: ev.account === "super" ? "super" : "personal" })),
+    ...contributionMarkers,
+  ];
+  const markerStacks = lumpLabelStacks(chartMarkers, startAge, endAge);
+  const showSuperLines = chartRows.some((r) => r.existingSuper > 1 || r.extraSuper > 1);
   const showRemoved = withExtra.rows.some((r) => r.assetRemoved > 0);
   const showUnfunded = withExtra.rows.some((r) => r.unfunded > 0);
 
@@ -653,50 +672,59 @@ export default function Contributions({
               {increase >= 0
                 ? `Your additional investments increase projected wealth at age ${compareAge} by ${fmtAUD(increase)}.`
                 : `Your additional investments reduce projected wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`}
+              {" "}Personal investments pay the annual spend, so that line can fall after retirement. Super is not spent, so it stays on its own line and keeps compounding. Extra monthly amounts are tagged where they start, and they apply only to the account you chose.
             </p>
             <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 78 + Math.max(0, ...lumpStacks, 0) * 34, right: 24, left: 8, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 78 + Math.max(0, ...markerStacks, 0) * 34, right: 24, left: 8, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
                   <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
                   <Tooltip content={<ContribTooltip theme={theme} />} />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text, fontSize: 15, fontWeight: 700 }} iconSize={18} />
-                  <ReLine type="monotone" dataKey="baseline" name="Existing plan" stroke={theme.muted} strokeWidth={3} dot={false} />
-                  <ReLine type="monotone" dataKey="withContributions" name="With additional contributions" stroke="#22d3ee" strokeWidth={5} dot={false} />
+                  <ReLine type="linear" dataKey="existingPersonal" name="Existing personal" stroke={theme.muted} strokeWidth={3} dot={false} />
+                  <ReLine type="linear" dataKey="extraPersonal" name="Personal with extras" stroke="#22d3ee" strokeWidth={5} dot={false} />
+                  {showSuperLines ? <ReLine type="linear" dataKey="existingSuper" name="Existing super" stroke={theme.muted} strokeWidth={2} strokeDasharray="6 4" dot={false} /> : null}
+                  {showSuperLines ? <ReLine type="linear" dataKey="extraSuper" name="Super with extras" stroke="#fbbf24" strokeWidth={4} dot={false} /> : null}
                   <ReferenceLine x={retirementAge} stroke={theme.gold} strokeWidth={3} strokeDasharray="6 3" label={{ value: `Retirement ${retirementAge}`, fill: theme.gold, fontSize: 14, fontWeight: 800, position: "insideTopLeft" }} />
                   <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeWidth={2} strokeDasharray="3 3" label={{ value: `Target horizon ${lifeExpectancy}`, fill: theme.axis, fontSize: 13, fontWeight: 700, position: "insideTopRight" }} />
                   {targetCapital > 0 ? (
                     <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" label={{ value: "Target", fill: theme.primary, fontSize: 11, position: "insideTopRight" }} />
                   ) : null}
-                  {lumpMarkers.map((ev, i) => (
-                    <ReferenceDot
-                      key={`${ev.label}-${ev.age}-${i}`}
-                      x={ev.age}
-                      y={balanceOnChart(chartRows, ev.age)}
-                      r={8}
-                      fill="#fbbf24"
-                      stroke="#fff"
-                      strokeWidth={2}
-                      label={(props) => (
-                        <LumpCallout
-                          {...props}
-                          text={`${fmtAUD(ev.amount)} ${ev.label}`}
-                          fill={theme.text}
-                          bg={theme.cardBg}
-                          lift={lumpStacks[i] * 34}
-                        />
-                      )}
-                    />
-                  ))}
+                  {chartMarkers.map((ev, i) => {
+                    const series = ev.account === "super" ? "extraSuper" : "extraPersonal";
+                    const color = ev.kind === "schedule" ? "#22d3ee" : "#fbbf24";
+                    const text = ev.kind === "schedule" ? ev.label : `${fmtAUD(ev.amount)} ${ev.label}`;
+                    return (
+                      <ReferenceDot
+                        key={`${ev.kind}-${ev.label}-${ev.age}-${i}`}
+                        x={ev.age}
+                        y={balanceOnChart(chartRows, ev.age, series)}
+                        r={8}
+                        fill={color}
+                        stroke="#fff"
+                        strokeWidth={2}
+                        label={(props) => (
+                          <LumpCallout
+                            {...props}
+                            text={text}
+                            fill={theme.text}
+                            bg={theme.cardBg}
+                            color={color}
+                            lift={markerStacks[i] * 34}
+                          />
+                        )}
+                      />
+                    );
+                  })}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
-            {lumpMarkers.length > 0 ? (
-              <p style={{ margin: "8px 0 0", color: theme.muted }}>
-                Lump sums marked on the chart: {lumpMarkers.map((ev) => `${ev.label} ${fmtAUD(ev.amount)} at age ${Number.isInteger(ev.age) ? ev.age : ev.age.toFixed(1)}`).join("; ")}.
-              </p>
-            ) : null}
+            <p style={{ margin: "8px 0 0", color: theme.muted }}>
+              The grey line is the existing personal plan. The bright line is personal investments after extra contributions. After retirement, spending comes out of personal investments only, so that line falls when spending is larger than growth, and it stays at zero once the money is gone. It does not bounce back up. Super, when you have any, is the dashed grey line and the gold line. It is not used for spending, so it can keep rising on its own.
+              {contributionMarkers.length > 0 ? ` Extra monthly contributions start at: ${contributionMarkers.map((ev) => `${ev.label} from age ${ev.age}`).join("; ")}.` : ""}
+              {lumpMarkers.length > 0 ? ` Lump sums: ${lumpMarkers.map((ev) => `${ev.label} ${fmtAUD(ev.amount)} into ${ev.account === "super" ? "super" : "personal"} at age ${Number.isInteger(ev.age) ? ev.age : ev.age.toFixed(1)}`).join("; ")}.` : ""}
+            </p>
       </section>
 
       <section style={{ ...card, marginTop: 12 }}>
