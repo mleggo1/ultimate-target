@@ -4,6 +4,7 @@ import {
   ComposedChart,
   Legend,
   Line as ReLine,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -203,6 +204,35 @@ function EntryBar({ title, summary, enabled, onToggle, expanded, onEdit, onDelet
         Delete
       </IconButton>
     </div>
+  );
+}
+
+function balanceOnChart(rows, age) {
+  if (!rows?.length) return 0;
+  let prev = rows[0];
+  for (const row of rows) {
+    if (row.age === age) return row.withContributions || 0;
+    if (row.age > age) {
+      const span = row.age - prev.age || 1;
+      const t = (age - prev.age) / span;
+      return (prev.withContributions || 0) + ((row.withContributions || 0) - (prev.withContributions || 0)) * t;
+    }
+    prev = row;
+  }
+  return prev.withContributions || 0;
+}
+
+function LumpCallout({ viewBox, text, fill, bg, lift }) {
+  if (!viewBox || viewBox.x == null) return null;
+  const x = viewBox.x;
+  const y = viewBox.y - 18 - lift;
+  const width = Math.min(240, Math.max(128, text.length * 7.2));
+  return (
+    <g>
+      <line x1={x} y1={viewBox.y - 8} x2={x} y2={y + 10} stroke="#fbbf24" strokeWidth={2} />
+      <rect x={x - width / 2} y={y - 16} width={width} height={26} rx={8} fill={bg} stroke="#fbbf24" strokeWidth={1.5} />
+      <text x={x} y={y + 2} textAnchor="middle" fill={fill} fontSize={12} fontWeight={800}>{text}</text>
+    </g>
   );
 }
 
@@ -606,7 +636,7 @@ export default function Contributions({
             </p>
             <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 36, right: 16, left: 8, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 78, right: 24, left: 8, bottom: 24 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
                   <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
@@ -620,17 +650,33 @@ export default function Contributions({
                     <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" label={{ value: "Target", fill: theme.primary, fontSize: 11, position: "insideTopRight" }} />
                   ) : null}
                   {lumpMarkers.map((ev, i) => (
-                    <ReferenceLine
+                    <ReferenceDot
                       key={`${ev.label}-${ev.age}-${i}`}
                       x={ev.age}
-                      stroke={theme.gold}
-                      strokeDasharray="2 4"
-                      label={{ value: ev.label, fill: theme.text, fontSize: 10, position: "top" }}
+                      y={balanceOnChart(chartRows, ev.age)}
+                      r={8}
+                      fill="#fbbf24"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      label={(props) => (
+                        <LumpCallout
+                          {...props}
+                          text={`${fmtAUD(ev.amount)} ${ev.label}`}
+                          fill={theme.text}
+                          bg={theme.cardBg}
+                          lift={(i % 3) * 28}
+                        />
+                      )}
                     />
                   ))}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
+            {lumpMarkers.length > 0 ? (
+              <p style={{ margin: "8px 0 0", color: theme.muted }}>
+                Lump sums marked on the chart: {lumpMarkers.map((ev) => `${ev.label} ${fmtAUD(ev.amount)} at age ${Number.isInteger(ev.age) ? ev.age : ev.age.toFixed(1)}`).join("; ")}.
+              </p>
+            ) : null}
       </section>
 
       <section style={{ ...card, marginTop: 12 }}>
@@ -689,9 +735,17 @@ export default function Contributions({
         <ul className="ut-plan-summary">
           <li>You start with {fmtAUD(personalOpening)} in personal investments and {fmtAUD(superOpening)} in super. Combined, that is {fmtAUD(personalOpening + superOpening)}.</li>
           <li>Existing savings of {fmtAUD(monthlySave)} a month continue until age {retirementAge}. Anything added below is extra, so it is not counted twice.</li>
-          {schedules.filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0).map((s) => (
-            <li key={s.id}>{s.account === "super" ? "Super" : "Personal"}: {s.name?.trim() || "Additional contribution"} — {formatContributionSummary(moneyNumber(s.amount), s.startAge, s.untilEnd ? horizonEnd : s.stopAge, s.untilEnd)}</li>
-          ))}
+          {schedules.filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0).map((s) => {
+            const extraPersonal = schedules.filter((item) => item.enabled !== false && item.account !== "super").reduce((sum, item) => sum + moneyNumber(item.amount), 0);
+            const extraSuper = schedules.filter((item) => item.enabled !== false && item.account === "super").reduce((sum, item) => sum + moneyNumber(item.amount), 0);
+            const personalTotal = Math.max(0, monthlySave) + extraPersonal;
+            const totalNote = s.account === "super"
+              ? ` (${fmtAUD(extraSuper)} a month into super in total)`
+              : ` (${fmtAUD(personalTotal)} a month in total)`;
+            return (
+              <li key={s.id}>{s.account === "super" ? "Super" : "Personal"}: {s.name?.trim() || "Additional contribution"} — {formatContributionSummary(moneyNumber(s.amount), s.startAge, s.untilEnd ? horizonEnd : s.stopAge, s.untilEnd).replace(/\.$/, "")}{totalNote}.</li>
+            );
+          })}
           {schedules.filter((s) => s.enabled !== false && moneyNumber(s.amount) > 0).length === 0 ? <li>No additional monthly contributions.</li> : null}
           {lumpSums.filter((l) => l.enabled !== false && moneyNumber(l.amount) > 0).map((l) => (
             <li key={l.id}>{l.description?.trim() || "Lump sum"}: {fmtAUD(moneyNumber(l.amount))} into {l.account === "super" ? "super" : "personal investments"} at age {l.age}{Number(l.monthOffset) > 0 ? ` plus ${l.monthOffset} months` : ""}{l.transfer ? ", replacing an asset already in the plan" : ""}.</li>
