@@ -24,13 +24,17 @@
 }
 
 .ut-card {
-  width: min(1680px, 100%);
+  width: min(1140px, 100%);
   margin: 0 auto;
   border-radius: 28px;
   padding: 18px 20px 26px;
   box-shadow: 0 35px 80px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(12px);
   box-sizing: border-box;
+}
+
+.ut-card--wide {
+  width: min(1680px, 100%);
 }
 
 /* Enhanced Title Styling */

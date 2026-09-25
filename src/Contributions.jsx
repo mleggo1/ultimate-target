@@ -74,9 +74,20 @@ function MoneyInput({ id, value, onChange, error, theme, label, hint }) {
         value={shown}
         onFocus={() => {
           setFocus(true);
-          setText(value == null || value === "" ? "" : String(value));
+          const raw = value == null || value === "" ? "" : String(value);
+          setText(moneyNumber(raw) === 0 ? "" : raw);
         }}
         onBlur={() => setFocus(false)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const root = e.currentTarget.closest(".ut-contrib");
+          const fields = [...(root || document).querySelectorAll("input, select, textarea")].filter(
+            (el) => !el.disabled && el.tabIndex !== -1 && el.offsetParent !== null
+          );
+          const next = fields[fields.indexOf(e.currentTarget) + 1];
+          if (next) next.focus();
+        }}
         onChange={(e) => {
           setText(e.target.value);
           onChange(e.target.value);
@@ -421,7 +432,7 @@ export default function Contributions({
   };
 
   return (
-    <div>
+    <div className="ut-contrib">
       <section style={{ ...card, marginTop: 10 }} aria-label="Using your existing assumptions">
         <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Using your existing assumptions</h2>
         <dl className="ut-assumptions">

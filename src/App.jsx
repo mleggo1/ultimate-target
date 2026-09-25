@@ -492,7 +492,7 @@ export default function App() {
 
   const content = (
     <div className={`ut-shell ${dark ? "ut-shell--dark" : "ut-shell--light"}`}>
-      <div className="ut-card" style={{ background: theme.pageBg, color: theme.text }}>
+      <div className={`ut-card${tab === TABS.CONTRIBUTIONS ? " ut-card--wide" : ""}`} style={{ background: theme.pageBg, color: theme.text }}>
         {/* Sticky header */}
         <div style={{ position: "sticky", top: 0, zIndex: 5, paddingBottom: 8, background: theme.pageBg }}>
           <header className="ut-mobile-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
