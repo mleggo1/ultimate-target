@@ -257,15 +257,9 @@ function ContribTooltip({ active, payload, label, theme }) {
   return (
     <div style={{ background: theme.cardBg, border: `1px solid ${theme.border}`, borderRadius: 12, padding: "10px 12px", color: theme.text }}>
       <div style={{ fontWeight: 800, marginBottom: 6 }}>Age {label}</div>
-      <div>Existing personal: {fmtAUD(row.existingPersonal)}</div>
-      <div>Personal with extras: {fmtAUD(row.extraPersonal)}</div>
-      {row.existingSuper > 0 || row.extraSuper > 0 ? (
-        <>
-          <div>Existing super: {fmtAUD(row.existingSuper)}</div>
-          <div>Super with extras: {fmtAUD(row.extraSuper)}</div>
-        </>
-      ) : null}
-      <div>Combined difference: {fmtAUD(row.difference)}</div>
+      <div>Existing plan: {fmtAUD(row.baseline)}</div>
+      <div>With additional contributions: {fmtAUD(row.withContributions)}</div>
+      <div>Difference: {fmtAUD(row.difference)}</div>
     </div>
   );
 }
@@ -343,7 +337,7 @@ export default function Contributions({
   const existingWealth = baseRow?.nominal || 0;
   const withWealth = extraRow?.nominal || 0;
   const increase = withWealth - existingWealth;
-  const spendable = extraRow?.personal || 0;
+  const spendable = extraRow?.nominal || 0;
   const targetCapital = useMemo(
     () =>
       requiredCapitalAtRetirement({
@@ -385,7 +379,6 @@ export default function Contributions({
     ...contributionMarkers,
   ];
   const markerStacks = lumpLabelStacks(chartMarkers, startAge, endAge);
-  const showSuperLines = chartRows.some((r) => r.existingSuper > 1 || r.extraSuper > 1);
   const showRemoved = withExtra.rows.some((r) => r.assetRemoved > 0);
   const showUnfunded = withExtra.rows.some((r) => r.unfunded > 0);
 
@@ -518,7 +511,7 @@ export default function Contributions({
           <div><dt>Annual spend target</dt><dd>{fmtAUD(annualSpendToday)}</dd></div>
         </dl>
         <p style={{ margin: "8px 0 0", color: theme.muted, fontSize: 12 }}>
-          Personal and super use these same returns and fees. Amounts are money credited to investments; this plan does not apply a second tax deduction. No super access age is set, so super is not drawn to fund spending.
+          Personal and super use these same returns and fees. Amounts are money credited to investments; this plan does not apply a second tax deduction. After retirement, spending is drawn from personal investments and super together.
         </p>
       </section>
 
@@ -527,7 +520,7 @@ export default function Contributions({
           <section style={card} aria-labelledby="balances-heading">
             <h3 id="balances-heading" style={{ margin: "0 0 6px" }}>Starting balances</h3>
             <p style={{ margin: "0 0 12px", color: theme.muted, fontSize: 13 }}>
-              Split your savings between personal investments and super. The combined total stays in sync with the rest of the plan. Super is kept separate and is not drawn to fund spending.
+              Split your savings between personal investments and super. The combined total stays in sync with the rest of the plan. After retirement, both are drawn down together.
             </p>
             <div className="ut-entry-fields">
               <MoneyInput id="personal-start" label="Personal investments" value={personalOpening} error={null} theme={theme} hint={personalOpening > 0 ? `${fmtAUD(personalOpening)} already invested outside super` : "Nothing in personal investments yet"} onChange={(raw) => onPersonalStart(moneyNumber(raw))} />
@@ -628,15 +621,14 @@ export default function Contributions({
           <section style={card} aria-labelledby="flex-heading">
             <h3 id="flex-heading" style={{ margin: "0 0 6px" }}>Try the plan</h3>
             <p style={{ margin: "0 0 12px", color: theme.muted, fontSize: 13 }}>
-              Move annual spend to see when personal investments run out. Super stays invested and is not used for this spending.
+              Personal investing and super are drawn down together after retirement. Annual spending sits with the chart so you can watch the line as you move it.
             </p>
-            <PlanSlider id="contrib-spend" label="Annual spend in today's dollars" money theme={theme} min={0} max={1300000} step={1000} value={Math.max(0, annualSpendToday)} onChange={onAnnualSpend} />
             <PlanSlider id="contrib-personal-monthly" label="Personal investing per month" money theme={theme} min={0} max={25000} step={100} value={Math.max(0, personalMonthly)} onChange={onPersonalMonthly} />
             <PlanSlider id="contrib-super-monthly" label="Superannuation per month" money theme={theme} min={0} max={25000} step={100} value={Math.max(0, superMonthly)} onChange={onSuperMonthly} />
             <PlanSlider id="contrib-retire" label="Retirement age" theme={theme} min={currentAge + 1} max={100} step={1} value={retirementAge} onChange={onRetirementAge} />
             <PlanSlider id="contrib-life" label="Life expectancy" theme={theme} min={retirementAge + 1} max={110} step={1} value={lifeExpectancy} onChange={onLifeExpectancy} />
             <div className="ut-runout" style={{ borderColor: withExtra.depletedAge ? theme.danger : theme.success, marginTop: 12 }}>
-              <strong>{withExtra.depletedAge ? `Personal investments run out around age ${withExtra.depletedAge}` : `Personal investments last beyond age ${lifeExpectancy}`}</strong>
+              <strong>{withExtra.depletedAge ? `The plan runs out around age ${withExtra.depletedAge}` : `The plan lasts beyond age ${lifeExpectancy}`}</strong>
               <span>
                 {baseline.depletedAge
                   ? `Without the extra contributions, they run out around age ${baseline.depletedAge}.`
@@ -657,7 +649,7 @@ export default function Contributions({
               label={targetCapital == null ? "Gap to target" : above ? "Above target" : "Gap to target"}
               value={gapValue == null ? "Not fundable" : fmtAUD(gapValue)}
               tone={above ? "success" : "danger"}
-              hint={targetCapital == null ? "Spending cannot be funded on these assumptions." : `Spendable personal investments versus ${fmtAUD(targetCapital)} needed to fund spend to age ${lifeExpectancy}.`}
+              hint={targetCapital == null ? "Spending cannot be funded on these assumptions." : `Combined personal and super versus ${fmtAUD(targetCapital)} needed to fund spend to age ${lifeExpectancy}.`}
             />
           </div>
           <p style={{ margin: "8px 0 0", color: theme.muted, fontSize: 13 }}>
@@ -668,11 +660,14 @@ export default function Contributions({
 
       <section className="ut-contrib-chart-card" style={{ ...card, marginTop: 12 }} aria-labelledby="contrib-chart-title">
             <h2 id="contrib-chart-title" style={{ margin: "0 0 8px", fontSize: 18 }}>Projected wealth</h2>
-            <p style={{ margin: "0 0 8px" }} aria-live="polite">
+            <PlanSlider id="contrib-spend" label="Annual spend in today's dollars" money theme={theme} min={0} max={1300000} step={1000} value={Math.max(0, annualSpendToday)} onChange={onAnnualSpend} />
+            <p style={{ margin: "8px 0" }} aria-live="polite">
+              {withExtra.depletedAge ? `At this spend the combined plan runs out around age ${withExtra.depletedAge}.` : `At this spend the combined plan lasts beyond age ${lifeExpectancy}.`}
+              {" "}
               {increase >= 0
-                ? `Your additional investments increase projected wealth at age ${compareAge} by ${fmtAUD(increase)}.`
-                : `Your additional investments reduce projected wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`}
-              {" "}Personal investments pay the annual spend, so that line can fall after retirement. Super is not spent, so it stays on its own line and keeps compounding. Extra monthly amounts are tagged where they start, and they apply only to the account you chose.
+                ? `Additional contributions increase wealth at age ${compareAge} by ${fmtAUD(increase)}.`
+                : `Additional contributions reduce wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`}
+              {" "}The lines are personal investments and super added together. After retirement, spending comes out of both. Tags show where extra contributions and lump sums go in.
             </p>
             <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
               <ResponsiveContainer>
@@ -682,17 +677,15 @@ export default function Contributions({
                   <YAxis tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
                   <Tooltip content={<ContribTooltip theme={theme} />} />
                   <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text, fontSize: 15, fontWeight: 700 }} iconSize={18} />
-                  <ReLine type="linear" dataKey="existingPersonal" name="Existing personal" stroke={theme.muted} strokeWidth={3} dot={false} />
-                  <ReLine type="linear" dataKey="extraPersonal" name="Personal with extras" stroke="#22d3ee" strokeWidth={5} dot={false} />
-                  {showSuperLines ? <ReLine type="linear" dataKey="existingSuper" name="Existing super" stroke={theme.muted} strokeWidth={2} strokeDasharray="6 4" dot={false} /> : null}
-                  {showSuperLines ? <ReLine type="linear" dataKey="extraSuper" name="Super with extras" stroke="#fbbf24" strokeWidth={4} dot={false} /> : null}
+                  <ReLine type="linear" dataKey="baseline" name="Existing plan" stroke={theme.muted} strokeWidth={3} dot={false} />
+                  <ReLine type="linear" dataKey="withContributions" name="With additional contributions" stroke="#22d3ee" strokeWidth={5} dot={false} />
                   <ReferenceLine x={retirementAge} stroke={theme.gold} strokeWidth={3} strokeDasharray="6 3" label={{ value: `Retirement ${retirementAge}`, fill: theme.gold, fontSize: 14, fontWeight: 800, position: "insideTopLeft" }} />
                   <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeWidth={2} strokeDasharray="3 3" label={{ value: `Target horizon ${lifeExpectancy}`, fill: theme.axis, fontSize: 13, fontWeight: 700, position: "insideTopRight" }} />
                   {targetCapital > 0 ? (
                     <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" label={{ value: "Target", fill: theme.primary, fontSize: 11, position: "insideTopRight" }} />
                   ) : null}
                   {chartMarkers.map((ev, i) => {
-                    const series = ev.account === "super" ? "extraSuper" : "extraPersonal";
+                    const series = "withContributions";
                     const color = ev.kind === "schedule" ? "#22d3ee" : "#fbbf24";
                     const text = ev.kind === "schedule" ? ev.label : `${fmtAUD(ev.amount)} ${ev.label}`;
                     return (
@@ -721,7 +714,7 @@ export default function Contributions({
               </ResponsiveContainer>
             </div>
             <p style={{ margin: "8px 0 0", color: theme.muted }}>
-              The grey line is the existing personal plan. The bright line is personal investments after extra contributions. After retirement, spending comes out of personal investments only, so that line falls when spending is larger than growth, and it stays at zero once the money is gone. It does not bounce back up. Super, when you have any, is the dashed grey line and the gold line. It is not used for spending, so it can keep rising on its own.
+              The grey line is the existing plan. The bright line includes additional contributions. Both lines are personal investments and super added together, and retirement spending is taken from that combined balance.
               {contributionMarkers.length > 0 ? ` Extra monthly contributions start at: ${contributionMarkers.map((ev) => `${ev.label} from age ${ev.age}`).join("; ")}.` : ""}
               {lumpMarkers.length > 0 ? ` Lump sums: ${lumpMarkers.map((ev) => `${ev.label} ${fmtAUD(ev.amount)} into ${ev.account === "super" ? "super" : "personal"} at age ${Number.isInteger(ev.age) ? ev.age : ev.age.toFixed(1)}`).join("; ")}.` : ""}
             </p>
@@ -800,7 +793,7 @@ export default function Contributions({
             <li key={l.id}>{l.description?.trim() || "Lump sum"}: {fmtAUD(moneyNumber(l.amount))} into {l.account === "super" ? "super" : "personal investments"} at age {l.age}{Number(l.monthOffset) > 0 ? ` plus ${l.monthOffset} months` : ""}{l.transfer ? ", replacing an asset already in the plan" : ""}.</li>
           ))}
           {lumpSums.filter((l) => l.enabled !== false && moneyNumber(l.amount) > 0).length === 0 ? <li>No future lump sums.</li> : null}
-          <li>Annual spending is {fmtAUD(annualSpendToday)} in today's dollars. {withExtra.depletedAge ? `At that spend, personal investments run out around age ${withExtra.depletedAge}.` : `At that spend, personal investments last beyond age ${lifeExpectancy}.`}</li>
+          <li>Annual spending is {fmtAUD(annualSpendToday)} in today's dollars, drawn from personal investments and super together. {withExtra.depletedAge ? `At that spend, the plan runs out around age ${withExtra.depletedAge}.` : `At that spend, the plan lasts beyond age ${lifeExpectancy}.`}</li>
           <li>{increase >= 0 ? `The extra money increases projected wealth at age ${compareAge} by ${fmtAUD(increase)}.` : `The extra money reduces projected wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`} At that age the plan holds {fmtAUD(extraRow?.personal || 0)} personally and {fmtAUD(extraRow?.super || 0)} in super.</li>
         </ul>
       </section>

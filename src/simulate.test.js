@@ -570,11 +570,11 @@ describe("additional contributions and lump sums", () => {
     assert.equal(rowAtAge(split.rows, 40).personal, 100000);
     assert.equal(rowAtAge(split.rows, 40).super, 200000);
     assert.equal(rowAtAge(split.rows, 40).nominal, 300000);
-    assert.equal(rowAtAge(split.rows, 41).super, 200000);
-    assert.ok(rowAtAge(split.rows, 41).personal < 100000);
+    assert.ok(Math.abs(rowAtAge(split.rows, 41).personal - 96000) < 1e-6);
+    assert.ok(Math.abs(rowAtAge(split.rows, 41).super - 192000) < 1e-6);
   });
 
-  it("does not draw super to fund spending when no access age exists", () => {
+  it("draws retirement spending from personal and super together", () => {
     const withSuper = simulate(plan({
       currentAge: 60,
       retirementAge: 60,
@@ -584,9 +584,9 @@ describe("additional contributions and lump sums", () => {
       lumpSums: [{ amount: 50000, age: 60, monthOffset: 0, account: "super", enabled: true }],
     }));
     assert.equal(rowAtAge(withSuper.rows, 60).super, 50000);
-    assert.equal(rowAtAge(withSuper.rows, 61).super, 50000);
+    assert.equal(rowAtAge(withSuper.rows, 61).super, 38000);
     assert.equal(rowAtAge(withSuper.rows, 61).personal, 0);
-    assert.equal(withSuper.depletedAge, 60);
+    assert.equal(withSuper.depletedAge, null);
   });
 
   it("loads saved plans with no additional contributions and validates fields", () => {

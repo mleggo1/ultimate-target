@@ -25,9 +25,10 @@
  * - A lump sum marked as a transfer removes the grown value of the included asset from
  *   personal investments at the same moment the proceeds are credited, so the asset and
  *   the proceeds are not both counted.
- * - Personal investments and superannuation stay separate. Super uses the same return and
- *   fee rate. There is no super access age, so retirement spending is taken from personal
- *   investments only. The fixed fee stays on that existing account.
+ * - Personal investments and superannuation stay separate while they are building. They use
+ *   the same return and fee rate. After retirement, spending is drawn from both in proportion
+ *   to their balances, so the combined wealth is what gets spent. The fixed fee stays on the
+ *   personal account. When there is no super, the personal formula is unchanged.
  */
 
 function num(v, fallback = 0) {
@@ -281,31 +282,46 @@ export function simulate(input = {}) {
     const personalNet = openingPersonal * (1 + r) - openingPersonal;
     const superNet = openingSuper * (1 + r) - openingSuper;
 
-    const hasPersonalEvent = extraP !== 0 || removed !== 0 || proceedsP !== 0;
-    if (hasPersonalEvent) {
-      personal = openingPersonal * (1 + r) + c + extraP - removed + proceedsP - sp - mFix;
-    } else {
-      personal = openingPersonal * (1 + r) + c - sp - mFix;
-    }
-
-    if (extraS !== 0 || proceedsS !== 0 || cSuper !== 0) {
-      superBal = openingSuper * (1 + r) + extraS + cSuper + proceedsS;
-    } else if (openingSuper !== 0) {
-      superBal = openingSuper * (1 + r);
-    }
-
+    const superActive = openingSuper !== 0 || extraS !== 0 || proceedsS !== 0 || cSuper !== 0;
     let personalShort = 0;
-    if (personal < 0) {
-      personalShort = -personal;
-      personal = 0;
-    }
     let superShort = 0;
-    if (superBal < 0) {
-      superShort = -superBal;
-      superBal = 0;
+    if (!superActive) {
+      const hasPersonalEvent = extraP !== 0 || removed !== 0 || proceedsP !== 0;
+      if (hasPersonalEvent) {
+        personal = openingPersonal * (1 + r) + c + extraP - removed + proceedsP - sp - mFix;
+      } else {
+        personal = openingPersonal * (1 + r) + c - sp - mFix;
+      }
+      if (personal < 0) {
+        personalShort = -personal;
+        personal = 0;
+      }
+      if (personal <= 0 && dep == null) dep = age;
+    } else {
+      let grownP = openingPersonal * (1 + r) + c + extraP - removed + proceedsP - mFix;
+      let grownS = openingSuper * (1 + r) + extraS + cSuper + proceedsS;
+      if (grownP < 0) {
+        personalShort += -grownP;
+        grownP = 0;
+      }
+      if (grownS < 0) {
+        superShort += -grownS;
+        grownS = 0;
+      }
+      const pool = grownP + grownS;
+      if (sp > 0 && pool <= sp) {
+        personalShort += sp - pool;
+        personal = 0;
+        superBal = 0;
+      } else if (sp > 0) {
+        personal = grownP - sp * (grownP / pool);
+        superBal = grownS - sp * (grownS / pool);
+      } else {
+        personal = grownP;
+        superBal = grownS;
+      }
+      if (personal <= 0 && superBal <= 0 && dep == null) dep = age;
     }
-
-    if (personal <= 0 && dep == null) dep = age;
 
     const deposited = c + cSuper + extraP + extraS + proceedsP + proceedsS;
     totalContributed += deposited;
