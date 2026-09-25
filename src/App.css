@@ -832,9 +832,46 @@
   overflow-x: visible;
 }
 
+.ut-chart-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+
+.ut-chart-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ut-chart-key-item i {
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.ut-chart-key-item b {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0b1220;
+  font-size: 12px;
+}
+
 .ut-contrib-chart {
   width: 100%;
-  height: 640px;
+  height: 720px;
 }
 
 .ut-breakdown {
@@ -871,7 +908,7 @@
   }
 
   .ut-contrib-chart {
-    height: 420px;
+    height: 480px;
   }
 
   .ut-table-wrap {

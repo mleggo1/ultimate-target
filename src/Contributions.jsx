@@ -3,9 +3,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Customized,
-  Legend,
   Line as ReLine,
-  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -228,78 +226,6 @@ function markerCaption(ev) {
   return `${short} ${conciseMoney(ev.amount)}`;
 }
 
-function labelBox(text) {
-  return { w: Math.min(210, Math.max(92, text.length * 7.1 + 18)), h: 26 };
-}
-
-function boxesTouch(a, b, gap) {
-  return a.l < b.r + gap && a.r + gap > b.l && a.t < b.b + gap && a.b + gap > b.t;
-}
-
-function segmentHitsBox(x1, y1, x2, y2, box, gap) {
-  const l = box.l - gap;
-  const r = box.r + gap;
-  const t = box.t - gap;
-  const b = box.b + gap;
-  if (Math.abs(x1 - x2) < 0.8) {
-    const yMin = Math.min(y1, y2);
-    const yMax = Math.max(y1, y2);
-    return x1 > l && x1 < r && yMax > t && yMin < b;
-  }
-  if (Math.abs(y1 - y2) < 0.8) {
-    const xMin = Math.min(x1, x2);
-    const xMax = Math.max(x1, x2);
-    return y1 > t && y1 < b && xMax > l && xMin < r;
-  }
-  return false;
-}
-
-function calloutPath(px, py, box) {
-  const fromY = py - 12;
-  if (px >= box.l && px <= box.r) return [[px, fromY, px, box.b]];
-  const lane = box.t - 14;
-  return [
-    [px, fromY, px, lane],
-    [px, lane, box.cx, lane],
-    [box.cx, lane, box.cx, box.t],
-  ];
-}
-
-function placeCallouts(points, bounds, lineY) {
-  const gap = 12;
-  const placed = [];
-  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
-  for (const point of sorted) {
-    const size = labelBox(point.text);
-    let chosen = null;
-    for (let row = 0; row < 10 && !chosen; row += 1) {
-      for (const col of [0, -1, 1, -2, 2, -3, 3]) {
-        const cy = point.y - 42 - row * (size.h + gap);
-        const cx = point.x + col * (size.w * 0.62 + gap);
-        const box = { l: cx - size.w / 2, r: cx + size.w / 2, t: cy - size.h / 2, b: cy + size.h / 2, cx, cy };
-        if (box.l < bounds.left || box.r > bounds.right || box.t < bounds.top) continue;
-        if (placed.some((item) => boxesTouch(box, item, gap))) continue;
-        if (bounds.fixed.some((item) => boxesTouch(box, item, gap))) continue;
-        if (!lineY(box)) continue;
-        const path = calloutPath(point.x, point.y, box);
-        const obstacles = [...placed, ...bounds.fixed];
-        const blocked = obstacles.some((item) => path.some(([x1, y1, x2, y2]) => segmentHitsBox(x1, y1, x2, y2, item, 6)));
-        if (blocked) continue;
-        chosen = { ...point, ...box, path };
-        break;
-      }
-    }
-    if (!chosen) {
-      const cy = bounds.top + 20 + placed.length * (size.h + gap);
-      const cx = Math.min(bounds.right - size.w / 2, Math.max(bounds.left + size.w / 2, point.x));
-      const box = { l: cx - size.w / 2, r: cx + size.w / 2, t: cy - size.h / 2, b: cy + size.h / 2, cx, cy };
-      chosen = { ...point, ...box, path: calloutPath(point.x, point.y, box) };
-    }
-    placed.push(chosen);
-  }
-  return placed;
-}
-
 function balanceOnChart(rows, age, key) {
   if (!rows?.length) return 0;
   let prev = rows[0];
@@ -317,94 +243,46 @@ function balanceOnChart(rows, age, key) {
 
 function axisHeadroom(peak) {
   const value = Math.max(0, Number(peak) || 0);
-  if (value <= 0) return { max: 1_000_000, step: 1_000_000 };
-  const rough = value / 4;
-  const pow = 10 ** Math.floor(Math.log10(rough));
+  if (value <= 0) return { max: 100_000, step: 20_000 };
+  const rough = value / 5;
+  const pow = 10 ** Math.floor(Math.log10(Math.max(rough, 1)));
   const n = rough / pow;
-  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
   const step = nice * pow;
-  const top = Math.ceil((value * 1.001) / step) * step;
-  return { max: top + step, step };
+  const max = Math.max(step, Math.ceil((value * 1.06) / step) * step);
+  return { max, step };
 }
 
-function opaqueLabel(x, y, text, { fill, bg, stroke, anchor = "middle" }) {
-  const width = Math.min(260, Math.max(108, text.length * 7.4 + 20));
-  const height = 26;
-  const left = anchor === "start" ? x : anchor === "end" ? x - width : x - width / 2;
-  return (
-    <g>
-      <rect x={left} y={y - height / 2} width={width} height={height} rx={8} fill={bg} fillOpacity={1} stroke={stroke} strokeWidth={1.5} />
-      <text x={left + width / 2} y={y + 4} textAnchor="middle" fill={fill} fontSize={12} fontWeight={800}>{text}</text>
-    </g>
-  );
-}
-
-function ChartNotes({ xAxisMap, yAxisMap, offset, markers, chartRows, theme, retirementAge, lifeExpectancy, targetCapital, yMax }) {
+function ChartMarks({ xAxisMap, yAxisMap, offset, markers, chartRows, theme, retirementAge, lifeExpectancy }) {
   const xAxis = xAxisMap && Object.values(xAxisMap)[0];
   const yAxis = yAxisMap && Object.values(yAxisMap)[0];
   if (!xAxis?.scale || !yAxis?.scale || !offset) return null;
-  const retireText = `Retirement ${retirementAge}`;
-  const horizonText = `Horizon ${lifeExpectancy}`;
-  const retireSize = labelBox(retireText);
-  const horizonSize = labelBox(horizonText);
   const retireX = xAxis.scale(retirementAge);
   const horizonX = xAxis.scale(lifeExpectancy);
-  const fixed = [];
-  if (Number.isFinite(retireX)) {
-    const cx = Math.min(offset.left + offset.width - retireSize.w / 2 - 8, Math.max(offset.left + retireSize.w / 2, retireX + 8 + retireSize.w / 2));
-    fixed.push({ l: cx - retireSize.w / 2, r: cx + retireSize.w / 2, t: 8, b: 8 + retireSize.h, cx, cy: 8 + retireSize.h / 2, text: retireText, stroke: theme.gold, fill: theme.gold });
-  }
-  if (Number.isFinite(horizonX)) {
-    const cx = Math.max(offset.left + horizonSize.w / 2 + 8, Math.min(offset.left + offset.width - horizonSize.w / 2, horizonX - 8 - horizonSize.w / 2));
-    const box = { l: cx - horizonSize.w / 2, r: cx + horizonSize.w / 2, t: 8, b: 8 + horizonSize.h, cx, cy: 8 + horizonSize.h / 2 };
-    if (!fixed.some((item) => boxesTouch(box, item, 12))) {
-      fixed.push({ ...box, text: horizonText, stroke: theme.axis, fill: theme.axis });
-    }
-  }
-  const points = (markers || []).map((ev) => {
-    const x = xAxis.scale(ev.age);
-    const y = yAxis.scale(balanceOnChart(chartRows, ev.age, "withContributions"));
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    return { ...ev, x, y, text: ev.text, color: ev.kind === "schedule" ? "#22d3ee" : "#fbbf24" };
-  }).filter(Boolean);
-  const ageAt = (x) => (xAxis.scale.invert ? xAxis.scale.invert(x) : evAge(xAxis, x));
-  const placed = placeCallouts(points, {
-    left: offset.left + 4,
-    right: offset.left + offset.width - 4,
-    top: 40,
-    fixed,
-  }, (box) => {
-    for (let x = box.l; x <= box.r; x += 8) {
-      const age = ageAt(x);
-      const line = Math.min(
-        yAxis.scale(balanceOnChart(chartRows, age, "withContributions")),
-        yAxis.scale(balanceOnChart(chartRows, age, "baseline"))
-      );
-      if (line < box.b + 8) return false;
-    }
-    return true;
-  });
   return (
     <g>
-      {fixed.map((box) => opaqueLabel(box.cx, box.cy, box.text, { fill: box.fill, bg: theme.cardBg, stroke: box.stroke }))}
-      {targetCapital > 0 ? opaqueLabel(offset.left + offset.width - 8, yAxis.scale(Math.min(targetCapital, yMax)) - 18, "Target", { fill: theme.primary, bg: theme.cardBg, stroke: theme.primary, anchor: "end" }) : null}
-      {placed.map((box, i) => (
-        <g key={`${box.kind}-${box.text}-${i}`}>
-          {box.path.map(([x1, y1, x2, y2], n) => (
-            <line key={n} x1={x1} y1={y1} x2={x2} y2={y2} stroke={box.color} strokeWidth={2} />
-          ))}
-          {opaqueLabel(box.cx, box.cy, box.text, { fill: theme.text, bg: theme.cardBg, stroke: box.color })}
-        </g>
-      ))}
+      {Number.isFinite(retireX) ? (
+        <text x={retireX} y={offset.top - 8} textAnchor="middle" fill={theme.gold} fontSize={13} fontWeight={800}>{`Retirement ${retirementAge}`}</text>
+      ) : null}
+      {Number.isFinite(horizonX) ? (
+        <text x={Math.min(horizonX, offset.left + offset.width)} y={offset.top - 8} textAnchor="end" fill={theme.axis} fontSize={13} fontWeight={800}>{`Age ${lifeExpectancy}`}</text>
+      ) : null}
+      {(markers || []).map((ev, i) => {
+        const x = xAxis.scale(ev.age);
+        const y = yAxis.scale(balanceOnChart(chartRows, ev.age, "withContributions"));
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        const shift = (markers || []).slice(0, i).filter((prev) => Math.abs(xAxis.scale(prev.age) - x) < 28).length;
+        const cx = x + shift * 26;
+        const fill = ev.kind === "schedule" ? "#22d3ee" : "#fbbf24";
+        return (
+          <g key={`${ev.kind}-${ev.age}-${i}`}>
+            <circle cx={cx} cy={y} r={12} fill={fill} stroke="#fff" strokeWidth={2} />
+            <text x={cx} y={y + 4} textAnchor="middle" fill="#0b1220" fontSize={12} fontWeight={800}>{i + 1}</text>
+          </g>
+        );
+      })}
     </g>
   );
-}
-
-function evAge(xAxis, x) {
-  const domain = xAxis.scale.domain();
-  const range = xAxis.scale.range();
-  const t = (x - range[0]) / ((range[1] - range[0]) || 1);
-  return domain[0] + t * (domain[1] - domain[0]);
 }
 
 function ContribTooltip({ active, payload, label, theme }) {
@@ -832,39 +710,35 @@ export default function Contributions({
                 : `Additional contributions reduce wealth at age ${compareAge} by ${fmtAUD(Math.abs(increase))}.`}
               {" "}The lines are personal investments and super added together. After retirement, spending comes out of both. Tags show where extra contributions and lump sums go in.
             </p>
-            <div className="ut-contrib-chart" style={{ width: "100%", height: 640 }}>
+            <div className="ut-chart-key" aria-label="Chart key">
+              <span className="ut-chart-key-item"><i style={{ background: theme.muted }} />Existing plan</span>
+              <span className="ut-chart-key-item"><i style={{ background: "#22d3ee" }} />With additional contributions</span>
+              {chartMarkers.map((ev, i) => (
+                <span key={`${ev.kind}-${ev.age}-${i}`} className="ut-chart-key-item" style={{ borderColor: ev.kind === "schedule" ? "#22d3ee" : "#fbbf24" }}>
+                  <b style={{ background: ev.kind === "schedule" ? "#22d3ee" : "#fbbf24" }}>{i + 1}</b>
+                  {markerCaption(ev)} at {Number.isInteger(ev.age) ? ev.age : Number(ev.age).toFixed(1)}
+                </span>
+              ))}
+            </div>
+            <div className="ut-contrib-chart" style={{ width: "100%", height: 720 }}>
               <ResponsiveContainer>
-                <ComposedChart data={chartRows} margin={{ top: 56 + Math.max(1, chartMarkers.length) * 36, right: 24, left: 8, bottom: 24 }}>
+                <ComposedChart data={chartRows} margin={{ top: 28, right: 16, left: 0, bottom: 8 }}>
                   <CartesianGrid stroke={theme.grid} strokeDasharray="3 3" />
                   <XAxis type="number" dataKey="age" domain={[startAge, endAge]} ticks={ageTicks} allowDecimals={false} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} />
-                  <YAxis domain={[0, yAxisScale.max]} ticks={yTicks} tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={72} />
+                  <YAxis domain={[0, yAxisScale.max]} ticks={yTicks} tickFormatter={fmtAxis} tick={{ fill: theme.axis, fontSize: 14, fontWeight: 700 }} width={64} />
                   <Tooltip content={<ContribTooltip theme={theme} />} />
-                  <Legend verticalAlign="top" align="right" wrapperStyle={{ color: theme.text, fontSize: 15, fontWeight: 700 }} iconSize={18} />
                   <ReLine type="linear" dataKey="baseline" name="Existing plan" stroke={theme.muted} strokeWidth={3} dot={false} />
                   <ReLine type="linear" dataKey="withContributions" name="With additional contributions" stroke="#22d3ee" strokeWidth={5} dot={false} />
                   <ReferenceLine x={retirementAge} stroke={theme.gold} strokeWidth={3} strokeDasharray="6 3" />
                   <ReferenceLine x={lifeExpectancy} stroke={theme.axis} strokeWidth={2} strokeDasharray="3 3" />
-                  {targetCapital > 0 ? <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" /> : null}
-                  {chartMarkers.map((ev, i) => (
-                    <ReferenceDot
-                      key={`${ev.kind}-${ev.label}-${ev.age}-${i}`}
-                      x={ev.age}
-                      y={balanceOnChart(chartRows, ev.age, "withContributions")}
-                      r={8}
-                      fill={ev.kind === "schedule" ? "#22d3ee" : "#fbbf24"}
-                      stroke="#fff"
-                      strokeWidth={2}
-                    />
-                  ))}
+                  {targetCapital > 0 ? <ReferenceLine y={targetCapital} stroke={theme.primary} strokeDasharray="4 4" label={{ value: "Target", fill: theme.primary, fontSize: 12, fontWeight: 800, position: "insideTopRight" }} /> : null}
                   <Customized
-                    component={ChartNotes}
-                    markers={chartMarkers.map((ev) => ({ ...ev, text: markerCaption(ev) }))}
+                    component={ChartMarks}
+                    markers={chartMarkers}
                     chartRows={chartRows}
                     theme={theme}
                     retirementAge={retirementAge}
                     lifeExpectancy={lifeExpectancy}
-                    targetCapital={targetCapital}
-                    yMax={yAxisScale.max}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
