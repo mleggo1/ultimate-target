@@ -715,6 +715,11 @@ export default function App() {
                   placeholder="Client name (optional)"
                   value={client}
                   onChange={(e) => setClient(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    focusNextField(e.currentTarget);
+                  }}
                   style={{ flex: 1, borderRadius: 12, border: `1px solid ${theme.border}`, padding: "10px 12px", background: theme.pageBg, color: theme.text }}
                 />
               </div>
@@ -1217,6 +1222,18 @@ export default function App() {
 }
 
 // ============== Input (range + number) ===================
+function focusNextField(current) {
+  const root = current.closest(".ut-card") || document;
+  const fields = [...root.querySelectorAll("input, select, textarea")].filter((el) => {
+    if (el.disabled || el.tabIndex === -1 || el.offsetParent === null) return false;
+    const type = (el.type || "").toLowerCase();
+    return type !== "range" && type !== "checkbox" && type !== "radio" && type !== "hidden" && type !== "button";
+  });
+  const next = fields[fields.indexOf(current) + 1];
+  current.blur();
+  if (next) next.focus();
+}
+
 function RangePair({ label, value, onChange, id, theme, min, max, step = 1, money = false, disabled = false, hint }) {
   const [text, setText] = useState(String(value));
   const [focus, setFocus] = useState(false);
@@ -1272,7 +1289,7 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
           value={display}
           onFocus={() => {
             setFocus(true);
-            if (money) setText(String(value));
+            if (money) setText(Number(value) === 0 ? "" : String(value));
           }}
           onChange={(e) => {
             const r = e.target.value;
@@ -1290,7 +1307,7 @@ function RangePair({ label, value, onChange, id, theme, min, max, step = 1, mone
             if (e.key === "Enter") {
               e.preventDefault();
               commit();
-              e.currentTarget.blur();
+              focusNextField(e.currentTarget);
             }
             if (e.key === "ArrowUp" || e.key === "ArrowDown") {
               e.preventDefault();

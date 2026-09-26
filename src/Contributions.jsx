@@ -50,6 +50,18 @@ function Field({ id, label, error, children }) {
   );
 }
 
+function focusNextField(current) {
+  const root = current.closest(".ut-card") || document;
+  const fields = [...root.querySelectorAll("input, select, textarea")].filter((el) => {
+    if (el.disabled || el.tabIndex === -1 || el.offsetParent === null) return false;
+    const type = (el.type || "").toLowerCase();
+    return type !== "range" && type !== "checkbox" && type !== "radio" && type !== "hidden" && type !== "button";
+  });
+  const next = fields[fields.indexOf(current) + 1];
+  current.blur();
+  if (next) next.focus();
+}
+
 function moneyNumber(raw) {
   const n = parseNumericInput(raw, { money: true });
   return Number.isFinite(n) ? n : 0;
@@ -81,12 +93,7 @@ function MoneyInput({ id, value, onChange, error, theme, label, hint }) {
         onKeyDown={(e) => {
           if (e.key !== "Enter") return;
           e.preventDefault();
-          const root = e.currentTarget.closest(".ut-contrib");
-          const fields = [...(root || document).querySelectorAll("input, select, textarea")].filter(
-            (el) => !el.disabled && el.tabIndex !== -1 && el.offsetParent !== null
-          );
-          const next = fields[fields.indexOf(e.currentTarget) + 1];
-          if (next) next.focus();
+          focusNextField(e.currentTarget);
         }}
         onChange={(e) => {
           setText(e.target.value);
@@ -129,12 +136,19 @@ function PlanSlider({ id, label, value, onChange, min, max, step, money, theme }
           value={shown}
           onFocus={() => {
             setFocus(true);
-            setText(String(value));
+            setText(money && Number(value) === 0 ? "" : String(value));
           }}
           onBlur={() => {
             setFocus(false);
             const n = moneyNumber(text);
             onChange(Math.min(max, Math.max(min, n)));
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            const n = moneyNumber(text);
+            onChange(Math.min(max, Math.max(min, n)));
+            focusNextField(e.currentTarget);
           }}
           onChange={(e) => {
             setText(e.target.value);
@@ -163,6 +177,11 @@ function NumberInput({ id, value, onChange, error, theme, label, min, max, step 
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         value={value}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          focusNextField(e.currentTarget);
+        }}
         onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
         style={{ background: theme.inputBg, color: theme.text, borderColor: error ? theme.danger : theme.border }}
       />
@@ -504,6 +523,11 @@ export default function Contributions({
                         value={s.name}
                         placeholder="Monthly ETF investing"
                         onChange={(e) => updateSchedule(s.id, { name: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          focusNextField(e.currentTarget);
+                        }}
                         style={{ background: theme.inputBg, color: theme.text, borderColor: theme.border }}
                       />
                     </Field>
@@ -604,6 +628,11 @@ export default function Contributions({
                           value={lump.description}
                           placeholder="Business sale"
                           onChange={(e) => updateLump(lump.id, { description: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            focusNextField(e.currentTarget);
+                          }}
                           style={{ background: theme.inputBg, color: theme.text, borderColor: theme.border }}
                         />
                       </Field>
